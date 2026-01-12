@@ -92,7 +92,7 @@ interface ControlsProps {
     allowRotation: boolean;
     onMouseDown: (event: React__default.MouseEvent, mode: DragMode, handle?: ControlHandle['position']) => void;
 }
-declare function Controls({ transform, allowRotation, onMouseDown }: ControlsProps): react_jsx_runtime.JSX.Element;
+declare const Controls: React__default.NamedExoticComponent<ControlsProps>;
 
 interface LayerPanelProps {
     images: ImageData[];
@@ -104,7 +104,7 @@ interface LayerPanelProps {
     currentView: TShirtView;
     onViewChange: (view: TShirtView) => void;
 }
-declare function LayerPanel({ images, selectedId, onSelect, onDelete, onReorder, onAddImage, currentView, onViewChange }: LayerPanelProps): react_jsx_runtime.JSX.Element;
+declare const LayerPanel: React__default.NamedExoticComponent<LayerPanelProps>;
 
 interface UseImageUploadOptions {
     config: EditorConfig;

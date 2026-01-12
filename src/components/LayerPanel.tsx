@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback, useEffect } from "react";
+import React, { useState, useRef, useCallback, useEffect, memo } from "react";
 import type { ImageData, TShirtView } from "../types";
 
 interface LayerPanelProps {
@@ -147,7 +147,7 @@ const addButtonStyle: React.CSSProperties = {
   transition: "filter 0.1s ease-out, transform 0.1s ease-out"
 };
 
-export function LayerPanel({
+export const LayerPanel = memo(function LayerPanel({
   images,
   selectedId,
   onSelect,
@@ -487,4 +487,4 @@ export function LayerPanel({
       )}
     </div>
   );
-}
+});

@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback, useEffect } from "react";
+import React, { useState, useRef, useCallback, useEffect, useMemo, memo } from "react";
 import type { TShirtBuilderProps, ImageData, EditorConfig, TShirtView, ViewImages } from "../types";
 import { useImageUpload } from "../hooks/useImageUpload";
 import { useImageTransform } from "../hooks/useImageTransform";
@@ -26,6 +26,85 @@ const DEFAULT_CONFIG: EditorConfig = {
   maxFileSize: 10 * 1024 * 1024
 };
 
+// Memoized image component to prevent re-renders during drag
+const DraggableImage = memo(function DraggableImage({
+  imageData,
+  isSelected,
+  isDragging,
+  hasPrintableArea,
+  onMouseDown,
+  onSelect
+}: {
+  imageData: ImageData;
+  isSelected: boolean;
+  isDragging: boolean;
+  hasPrintableArea: boolean;
+  onMouseDown: (e: React.MouseEvent) => void;
+  onSelect: () => void;
+}) {
+  const { transform } = imageData;
+
+  const imageStyle: React.CSSProperties = useMemo(() => ({
+    position: "absolute",
+    left: transform.position.x,
+    top: transform.position.y,
+    width: transform.size.width,
+    height: transform.size.height,
+    transform: transform.rotation ? `rotate(${transform.rotation}deg)` : undefined,
+    transformOrigin: "center center",
+    cursor: isDragging ? "grabbing" : "move",
+    userSelect: "none",
+    pointerEvents: "auto",
+    opacity: hasPrintableArea ? 0 : 1
+  }), [transform.position.x, transform.position.y, transform.size.width, transform.size.height, transform.rotation, isDragging, hasPrintableArea]);
+
+  return (
+    <img
+      src={imageData.src}
+      alt="Качен дизайн"
+      style={imageStyle}
+      draggable={false}
+      onMouseDown={onMouseDown}
+      onClick={e => {
+        e.stopPropagation();
+        onSelect();
+      }}
+    />
+  );
+});
+
+// Memoized clipped image for display
+const ClippedImage = memo(function ClippedImage({
+  imageData,
+  printableArea
+}: {
+  imageData: ImageData;
+  printableArea: EditorConfig['printableArea'];
+}) {
+  const { transform } = imageData;
+
+  const imageStyle: React.CSSProperties = useMemo(() => ({
+    position: "absolute",
+    left: transform.position.x - printableArea!.minX,
+    top: transform.position.y - printableArea!.minY,
+    width: transform.size.width,
+    height: transform.size.height,
+    transform: transform.rotation ? `rotate(${transform.rotation}deg)` : undefined,
+    transformOrigin: "center center",
+    userSelect: "none",
+    pointerEvents: "none"
+  }), [transform.position.x, transform.position.y, transform.size.width, transform.size.height, transform.rotation, printableArea]);
+
+  return (
+    <img
+      src={imageData.src}
+      alt="Качен дизайн"
+      style={imageStyle}
+      draggable={false}
+    />
+  );
+});
+
 export function TShirtBuilder({
   frontBgImage,
   backBgImage,
@@ -36,7 +115,8 @@ export function TShirtBuilder({
   style,
   initialImages
 }: TShirtBuilderProps) {
-  const config: EditorConfig = { ...DEFAULT_CONFIG, ...configProp };
+  // Memoize config to prevent unnecessary re-renders
+  const config: EditorConfig = useMemo(() => ({ ...DEFAULT_CONFIG, ...configProp }), [configProp]);
 
   const [currentView, setCurrentView] = useState<TShirtView>("front");
   const [viewImages, setViewImages] = useState<ViewImages>(initialImages || { front: [], back: [] });
@@ -165,7 +245,7 @@ export function TShirtBuilder({
     [deselectAll]
   );
 
-  const containerStyle: React.CSSProperties = {
+  const containerStyle: React.CSSProperties = useMemo(() => ({
     position: "relative",
     width: config.width,
     height: config.height,
@@ -179,9 +259,9 @@ export function TShirtBuilder({
     borderRadius: "10px",
     boxShadow: "0 2px 10px rgba(0, 0, 0, 0.1)",
     fontFamily: "Roboto, -apple-system, BlinkMacSystemFont, sans-serif"
-  };
+  }), [config.width, config.height, bgImage, currentBackgroundUrl, isDragging, dragMode]);
 
-  const dropZoneStyle: React.CSSProperties = {
+  const dropZoneStyle: React.CSSProperties = useMemo(() => ({
     position: "absolute",
     inset: 0,
     display: "flex",
@@ -192,7 +272,7 @@ export function TShirtBuilder({
     color: COLORS.GRAY,
     fontSize: "14px",
     pointerEvents: images.length > 0 ? "none" : "auto"
-  };
+  }), [images.length]);
 
   const [exportButtonHovered, setExportButtonHovered] = useState(false);
   const [exportButtonActive, setExportButtonActive] = useState(false);
@@ -360,70 +440,33 @@ export function TShirtBuilder({
                 }}
               >
                 {/* Render all images inside clip container */}
-                {images.map(imageData => {
-                  const { transform } = imageData;
-
-                  // Adjust position relative to printable area
-                  const imageStyle: React.CSSProperties = {
-                    position: "absolute",
-                    left: transform.position.x - config.printableArea!.minX,
-                    top: transform.position.y - config.printableArea!.minY,
-                    width: transform.size.width,
-                    height: transform.size.height,
-                    transform: transform.rotation ? `rotate(${transform.rotation}deg)` : undefined,
-                    transformOrigin: "center center",
-                    userSelect: "none",
-                    pointerEvents: "none"
-                  };
-
-                  return (
-                    <img
-                      key={imageData.id}
-                      src={imageData.src}
-                      alt="Качен дизайн"
-                      style={imageStyle}
-                      draggable={false}
-                    />
-                  );
-                })}
+                {images.map(imageData => (
+                  <ClippedImage
+                    key={imageData.id}
+                    imageData={imageData}
+                    printableArea={config.printableArea}
+                  />
+                ))}
               </div>
             )}
 
             {/* Render all images (interactive layer - invisible but captures events) */}
             {images.map(imageData => {
-              const { transform } = imageData;
               const isSelected = imageData.id === selectedId;
-
-              const imageStyle: React.CSSProperties = {
-                position: "absolute",
-                left: transform.position.x,
-                top: transform.position.y,
-                width: transform.size.width,
-                height: transform.size.height,
-                transform: transform.rotation ? `rotate(${transform.rotation}deg)` : undefined,
-                transformOrigin: "center center",
-                cursor: isDragging ? "grabbing" : "move",
-                userSelect: "none",
-                pointerEvents: "auto",
-                opacity: config.printableArea ? 0 : 1
-              };
 
               return (
                 <React.Fragment key={imageData.id}>
-                  <img
-                    src={imageData.src}
-                    alt="Качен дизайн"
-                    style={imageStyle}
-                    draggable={false}
+                  <DraggableImage
+                    imageData={imageData}
+                    isSelected={isSelected}
+                    isDragging={isDragging}
+                    hasPrintableArea={!!config.printableArea}
                     onMouseDown={e => handleMouseDown(e, imageData.id, "move")}
-                    onClick={e => {
-                      e.stopPropagation();
-                      selectImage(imageData.id);
-                    }}
+                    onSelect={() => selectImage(imageData.id)}
                   />
                   {isSelected && (
                     <Controls
-                      transform={transform}
+                      transform={imageData.transform}
                       allowRotation={config.allowRotation || false}
                       onMouseDown={(e, mode, handle) => handleMouseDown(e, imageData.id, mode, handle)}
                     />

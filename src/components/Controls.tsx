@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { memo, useMemo } from 'react';
 import type { ImageTransform, ControlHandle, DragMode } from '../types';
 
 interface ControlsProps {
@@ -41,10 +41,32 @@ const rotateHandleStyle: React.CSSProperties = {
   boxShadow: '0 2px 10px rgba(0, 0, 0, 0.2)',
 };
 
-export function Controls({ transform, allowRotation, onMouseDown }: ControlsProps) {
+const handles: Array<{
+  position: ControlHandle['position'];
+  style: React.CSSProperties;
+}> = [
+  {
+    position: 'nw',
+    style: { top: -HANDLE_SIZE / 2, left: -HANDLE_SIZE / 2, cursor: 'nwse-resize' },
+  },
+  {
+    position: 'ne',
+    style: { top: -HANDLE_SIZE / 2, right: -HANDLE_SIZE / 2, cursor: 'nesw-resize' },
+  },
+  {
+    position: 'sw',
+    style: { bottom: -HANDLE_SIZE / 2, left: -HANDLE_SIZE / 2, cursor: 'nesw-resize' },
+  },
+  {
+    position: 'se',
+    style: { bottom: -HANDLE_SIZE / 2, right: -HANDLE_SIZE / 2, cursor: 'nwse-resize' },
+  },
+];
+
+export const Controls = memo(function Controls({ transform, allowRotation, onMouseDown }: ControlsProps) {
   const { position, size, rotation } = transform;
 
-  const containerStyle: React.CSSProperties = {
+  const containerStyle: React.CSSProperties = useMemo(() => ({
     position: 'absolute',
     left: position.x,
     top: position.y,
@@ -53,7 +75,7 @@ export function Controls({ transform, allowRotation, onMouseDown }: ControlsProp
     transform: rotation ? `rotate(${rotation}deg)` : undefined,
     transformOrigin: 'center center',
     pointerEvents: 'none',
-  };
+  }), [position.x, position.y, size.width, size.height, rotation]);
 
   const borderStyle: React.CSSProperties = {
     position: 'absolute',
@@ -63,28 +85,6 @@ export function Controls({ transform, allowRotation, onMouseDown }: ControlsProp
     pointerEvents: 'none',
     boxShadow: '0 2px 10px rgba(0, 0, 0, 0.1)',
   };
-
-  const handles: Array<{
-    position: ControlHandle['position'];
-    style: React.CSSProperties;
-  }> = [
-    {
-      position: 'nw',
-      style: { top: -HANDLE_SIZE / 2, left: -HANDLE_SIZE / 2, cursor: 'nwse-resize' },
-    },
-    {
-      position: 'ne',
-      style: { top: -HANDLE_SIZE / 2, right: -HANDLE_SIZE / 2, cursor: 'nesw-resize' },
-    },
-    {
-      position: 'sw',
-      style: { bottom: -HANDLE_SIZE / 2, left: -HANDLE_SIZE / 2, cursor: 'nesw-resize' },
-    },
-    {
-      position: 'se',
-      style: { bottom: -HANDLE_SIZE / 2, right: -HANDLE_SIZE / 2, cursor: 'nwse-resize' },
-    },
-  ];
 
   return (
     <div style={containerStyle}>
@@ -128,4 +128,4 @@ export function Controls({ transform, allowRotation, onMouseDown }: ControlsProp
       )}
     </div>
   );
-}
+});

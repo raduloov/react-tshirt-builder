@@ -392,9 +392,27 @@ const rotateHandleStyle = {
     cursor: ROTATE_CURSOR,
     boxShadow: '0 2px 10px rgba(0, 0, 0, 0.2)',
 };
-function Controls({ transform, allowRotation, onMouseDown }) {
+const handles = [
+    {
+        position: 'nw',
+        style: { top: -HANDLE_SIZE / 2, left: -HANDLE_SIZE / 2, cursor: 'nwse-resize' },
+    },
+    {
+        position: 'ne',
+        style: { top: -HANDLE_SIZE / 2, right: -HANDLE_SIZE / 2, cursor: 'nesw-resize' },
+    },
+    {
+        position: 'sw',
+        style: { bottom: -HANDLE_SIZE / 2, left: -HANDLE_SIZE / 2, cursor: 'nesw-resize' },
+    },
+    {
+        position: 'se',
+        style: { bottom: -HANDLE_SIZE / 2, right: -HANDLE_SIZE / 2, cursor: 'nwse-resize' },
+    },
+];
+const Controls = React.memo(function Controls({ transform, allowRotation, onMouseDown }) {
     const { position, size, rotation } = transform;
-    const containerStyle = {
+    const containerStyle = React.useMemo(() => ({
         position: 'absolute',
         left: position.x,
         top: position.y,
@@ -403,7 +421,7 @@ function Controls({ transform, allowRotation, onMouseDown }) {
         transform: rotation ? `rotate(${rotation}deg)` : undefined,
         transformOrigin: 'center center',
         pointerEvents: 'none',
-    };
+    }), [position.x, position.y, size.width, size.height, rotation]);
     const borderStyle = {
         position: 'absolute',
         inset: -1,
@@ -412,24 +430,6 @@ function Controls({ transform, allowRotation, onMouseDown }) {
         pointerEvents: 'none',
         boxShadow: '0 2px 10px rgba(0, 0, 0, 0.1)',
     };
-    const handles = [
-        {
-            position: 'nw',
-            style: { top: -HANDLE_SIZE / 2, left: -HANDLE_SIZE / 2, cursor: 'nwse-resize' },
-        },
-        {
-            position: 'ne',
-            style: { top: -HANDLE_SIZE / 2, right: -HANDLE_SIZE / 2, cursor: 'nesw-resize' },
-        },
-        {
-            position: 'sw',
-            style: { bottom: -HANDLE_SIZE / 2, left: -HANDLE_SIZE / 2, cursor: 'nesw-resize' },
-        },
-        {
-            position: 'se',
-            style: { bottom: -HANDLE_SIZE / 2, right: -HANDLE_SIZE / 2, cursor: 'nwse-resize' },
-        },
-    ];
     return (jsxRuntime.jsxs("div", { style: containerStyle, children: [jsxRuntime.jsx("div", { style: borderStyle }), handles.map(({ position: pos, style }) => (jsxRuntime.jsx("div", { style: { ...handleStyle, ...style, pointerEvents: 'auto' }, onMouseDown: (e) => onMouseDown(e, 'resize', pos) }, pos))), allowRotation && (jsxRuntime.jsxs(jsxRuntime.Fragment, { children: [jsxRuntime.jsx("div", { style: {
                             position: 'absolute',
                             top: -28,
@@ -446,7 +446,7 @@ function Controls({ transform, allowRotation, onMouseDown }) {
                             transform: 'translateX(-50%)',
                             pointerEvents: 'auto',
                         }, onMouseDown: (e) => onMouseDown(e, 'rotate') })] }))] }));
-}
+});
 
 const ITEM_HEIGHT = 56; // Height of each layer item in pixels
 // teniski-varna color palette
@@ -546,7 +546,7 @@ const addButtonStyle = {
     boxShadow: "0 2px 10px rgba(250, 192, 0, 0.3)",
     transition: "filter 0.1s ease-out, transform 0.1s ease-out"
 };
-function LayerPanel({ images, selectedId, onSelect, onDelete, onReorder, onAddImage, currentView, onViewChange }) {
+const LayerPanel = React.memo(function LayerPanel({ images, selectedId, onSelect, onDelete, onReorder, onAddImage, currentView, onViewChange }) {
     const [dragState, setDragState] = React.useState(null);
     const listRef = React.useRef(null);
     // Reverse to show top layer first (last in array = top = first in list)
@@ -724,7 +724,7 @@ function LayerPanel({ images, selectedId, onSelect, onDelete, onReorder, onAddIm
                                     backgroundColor: isDragging ? "#e2e8f0" : "transparent"
                                 }, onMouseDown: e => handleMouseDown(e, reversedIndex), children: [jsxRuntime.jsx("div", { style: dragLineStyle }), jsxRuntime.jsx("div", { style: dragLineStyle }), jsxRuntime.jsx("div", { style: dragLineStyle })] }), jsxRuntime.jsx("img", { src: image.src, alt: `Layer ${originalIndex + 1}`, style: thumbnailStyle, draggable: false }), jsxRuntime.jsxs("span", { style: labelStyle, children: ["\u0421\u043B\u043E\u0439 ", originalIndex + 1] }), jsxRuntime.jsx("button", { style: hoveredDeleteId === image.id ? deleteButtonHoverStyle : deleteButtonStyle, onClick: e => handleDelete(e, image.id), onMouseEnter: () => setHoveredDeleteId(image.id), onMouseLeave: () => setHoveredDeleteId(null), title: "\u0418\u0437\u0442\u0440\u0438\u0439 \u0441\u043B\u043E\u0439", children: jsxRuntime.jsx("svg", { width: "14", height: "14", viewBox: "0 0 16 16", fill: "none", xmlns: "http://www.w3.org/2000/svg", children: jsxRuntime.jsx("path", { d: "M2 4h12M5.333 4V2.667a1.333 1.333 0 011.334-1.334h2.666a1.333 1.333 0 011.334 1.334V4m2 0v9.333a1.333 1.333 0 01-1.334 1.334H4.667a1.333 1.333 0 01-1.334-1.334V4h9.334z", stroke: "currentColor", strokeWidth: "1.5", strokeLinecap: "round", strokeLinejoin: "round" }) }) })] }, image.id));
                 }) }))] }));
-}
+});
 
 // Helper to load an image from a source URL
 function loadImage(src) {
@@ -824,8 +824,46 @@ const DEFAULT_CONFIG = {
     acceptedFileTypes: ["image/png", "image/jpeg", "image/webp", "image/gif"],
     maxFileSize: 10 * 1024 * 1024
 };
+// Memoized image component to prevent re-renders during drag
+const DraggableImage = React.memo(function DraggableImage({ imageData, isSelected, isDragging, hasPrintableArea, onMouseDown, onSelect }) {
+    const { transform } = imageData;
+    const imageStyle = React.useMemo(() => ({
+        position: "absolute",
+        left: transform.position.x,
+        top: transform.position.y,
+        width: transform.size.width,
+        height: transform.size.height,
+        transform: transform.rotation ? `rotate(${transform.rotation}deg)` : undefined,
+        transformOrigin: "center center",
+        cursor: isDragging ? "grabbing" : "move",
+        userSelect: "none",
+        pointerEvents: "auto",
+        opacity: hasPrintableArea ? 0 : 1
+    }), [transform.position.x, transform.position.y, transform.size.width, transform.size.height, transform.rotation, isDragging, hasPrintableArea]);
+    return (jsxRuntime.jsx("img", { src: imageData.src, alt: "\u041A\u0430\u0447\u0435\u043D \u0434\u0438\u0437\u0430\u0439\u043D", style: imageStyle, draggable: false, onMouseDown: onMouseDown, onClick: e => {
+            e.stopPropagation();
+            onSelect();
+        } }));
+});
+// Memoized clipped image for display
+const ClippedImage = React.memo(function ClippedImage({ imageData, printableArea }) {
+    const { transform } = imageData;
+    const imageStyle = React.useMemo(() => ({
+        position: "absolute",
+        left: transform.position.x - printableArea.minX,
+        top: transform.position.y - printableArea.minY,
+        width: transform.size.width,
+        height: transform.size.height,
+        transform: transform.rotation ? `rotate(${transform.rotation}deg)` : undefined,
+        transformOrigin: "center center",
+        userSelect: "none",
+        pointerEvents: "none"
+    }), [transform.position.x, transform.position.y, transform.size.width, transform.size.height, transform.rotation, printableArea]);
+    return (jsxRuntime.jsx("img", { src: imageData.src, alt: "\u041A\u0430\u0447\u0435\u043D \u0434\u0438\u0437\u0430\u0439\u043D", style: imageStyle, draggable: false }));
+});
 function TShirtBuilder({ frontBgImage, backBgImage, config: configProp, onChange, onExport, className, style, initialImages }) {
-    const config = { ...DEFAULT_CONFIG, ...configProp };
+    // Memoize config to prevent unnecessary re-renders
+    const config = React.useMemo(() => ({ ...DEFAULT_CONFIG, ...configProp }), [configProp]);
     const [currentView, setCurrentView] = React.useState("front");
     const [viewImages, setViewImages] = React.useState(initialImages || { front: [], back: [] });
     const [bgImage, setBgImage] = React.useState(null);
@@ -918,7 +956,7 @@ function TShirtBuilder({ frontBgImage, backBgImage, config: configProp, onChange
             deselectAll();
         }
     }, [deselectAll]);
-    const containerStyle = {
+    const containerStyle = React.useMemo(() => ({
         position: "relative",
         width: config.width,
         height: config.height,
@@ -932,8 +970,8 @@ function TShirtBuilder({ frontBgImage, backBgImage, config: configProp, onChange
         borderRadius: "10px",
         boxShadow: "0 2px 10px rgba(0, 0, 0, 0.1)",
         fontFamily: "Roboto, -apple-system, BlinkMacSystemFont, sans-serif"
-    };
-    const dropZoneStyle = {
+    }), [config.width, config.height, bgImage, currentBackgroundUrl, isDragging, dragMode]);
+    const dropZoneStyle = React.useMemo(() => ({
         position: "absolute",
         inset: 0,
         display: "flex",
@@ -944,7 +982,7 @@ function TShirtBuilder({ frontBgImage, backBgImage, config: configProp, onChange
         color: COLORS.GRAY,
         fontSize: "14px",
         pointerEvents: images.length > 0 ? "none" : "auto"
-    };
+    }), [images.length]);
     const [exportButtonHovered, setExportButtonHovered] = React.useState(false);
     const [exportButtonActive, setExportButtonActive] = React.useState(false);
     const exportButtonStyle = {
@@ -1026,41 +1064,9 @@ function TShirtBuilder({ frontBgImage, backBgImage, config: configProp, onChange
                                             height: config.printableArea.maxY - config.printableArea.minY,
                                             overflow: "hidden",
                                             pointerEvents: "none"
-                                        }, children: images.map(imageData => {
-                                            const { transform } = imageData;
-                                            // Adjust position relative to printable area
-                                            const imageStyle = {
-                                                position: "absolute",
-                                                left: transform.position.x - config.printableArea.minX,
-                                                top: transform.position.y - config.printableArea.minY,
-                                                width: transform.size.width,
-                                                height: transform.size.height,
-                                                transform: transform.rotation ? `rotate(${transform.rotation}deg)` : undefined,
-                                                transformOrigin: "center center",
-                                                userSelect: "none",
-                                                pointerEvents: "none"
-                                            };
-                                            return (jsxRuntime.jsx("img", { src: imageData.src, alt: "\u041A\u0430\u0447\u0435\u043D \u0434\u0438\u0437\u0430\u0439\u043D", style: imageStyle, draggable: false }, imageData.id));
-                                        }) })), images.map(imageData => {
-                                        const { transform } = imageData;
+                                        }, children: images.map(imageData => (jsxRuntime.jsx(ClippedImage, { imageData: imageData, printableArea: config.printableArea }, imageData.id))) })), images.map(imageData => {
                                         const isSelected = imageData.id === selectedId;
-                                        const imageStyle = {
-                                            position: "absolute",
-                                            left: transform.position.x,
-                                            top: transform.position.y,
-                                            width: transform.size.width,
-                                            height: transform.size.height,
-                                            transform: transform.rotation ? `rotate(${transform.rotation}deg)` : undefined,
-                                            transformOrigin: "center center",
-                                            cursor: isDragging ? "grabbing" : "move",
-                                            userSelect: "none",
-                                            pointerEvents: "auto",
-                                            opacity: config.printableArea ? 0 : 1
-                                        };
-                                        return (jsxRuntime.jsxs(React.Fragment, { children: [jsxRuntime.jsx("img", { src: imageData.src, alt: "\u041A\u0430\u0447\u0435\u043D \u0434\u0438\u0437\u0430\u0439\u043D", style: imageStyle, draggable: false, onMouseDown: e => handleMouseDown(e, imageData.id, "move"), onClick: e => {
-                                                        e.stopPropagation();
-                                                        selectImage(imageData.id);
-                                                    } }), isSelected && (jsxRuntime.jsx(Controls, { transform: transform, allowRotation: config.allowRotation || false, onMouseDown: (e, mode, handle) => handleMouseDown(e, imageData.id, mode, handle) }))] }, imageData.id));
+                                        return (jsxRuntime.jsxs(React.Fragment, { children: [jsxRuntime.jsx(DraggableImage, { imageData: imageData, isSelected: isSelected, isDragging: isDragging, hasPrintableArea: !!config.printableArea, onMouseDown: e => handleMouseDown(e, imageData.id, "move"), onSelect: () => selectImage(imageData.id) }), isSelected && (jsxRuntime.jsx(Controls, { transform: imageData.transform, allowRotation: config.allowRotation || false, onMouseDown: (e, mode, handle) => handleMouseDown(e, imageData.id, mode, handle) }))] }, imageData.id));
                                     }), config.printableArea && (jsxRuntime.jsx("div", { style: {
                                             position: "absolute",
                                             left: config.printableArea.minX,
