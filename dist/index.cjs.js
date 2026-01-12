@@ -135,11 +135,10 @@ function useImageTransform({ images, config, onChange }) {
     }, [images, selectedId]);
     const clampTransform = React.useCallback((newTransform) => {
         const { position, size, rotation } = newTransform;
-        // Only clamp size to min/max, allow position to be anywhere
+        // Only clamp size to min, allow position to be anywhere
         const minSize = config.minImageSize || 20;
-        const maxSize = config.maxImageSize || Math.max(config.width, config.height);
-        const clampedWidth = Math.max(minSize, Math.min(maxSize, size.width));
-        const clampedHeight = Math.max(minSize, Math.min(maxSize, size.height));
+        const clampedWidth = Math.max(minSize, size.width);
+        const clampedHeight = Math.max(minSize, size.height);
         return {
             position: { x: position.x, y: position.y },
             size: { width: clampedWidth, height: clampedHeight },
@@ -191,7 +190,6 @@ function useImageTransform({ images, config, onChange }) {
                 const { handle } = dragState;
                 const aspectRatio = image.naturalWidth / image.naturalHeight;
                 const minSize = config.minImageSize || 20;
-                const maxSize = config.maxImageSize || Math.max(config.width, config.height);
                 let newWidth = dragState.startTransform.size.width;
                 let newX = dragState.startTransform.position.x;
                 let newY = dragState.startTransform.position.y;
@@ -206,8 +204,8 @@ function useImageTransform({ images, config, onChange }) {
                         newWidth = dragState.startTransform.size.width - deltaX;
                         break;
                 }
-                // Clamp width first
-                const clampedWidth = Math.max(minSize, Math.min(maxSize, newWidth));
+                // Clamp width to minimum only
+                const clampedWidth = Math.max(minSize, newWidth);
                 const clampedHeight = clampedWidth / aspectRatio;
                 // Calculate position based on clamped size
                 const widthDiff = clampedWidth - dragState.startTransform.size.width;
@@ -690,12 +688,16 @@ function LayerPanel({ images, selectedId, onSelect, onDelete, onReorder, onAddIm
 }
 
 function exportToDataUrl(canvas, backgroundImage, images, config, format = 'image/png', quality = 0.92) {
+    const scale = config.exportScale || 1;
     const ctx = canvas.getContext('2d');
     if (!ctx) {
         throw new Error('Failed to get canvas context');
     }
     // Clear canvas
-    ctx.clearRect(0, 0, config.width, config.height);
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    // Scale all drawing operations
+    ctx.save();
+    ctx.scale(scale, scale);
     // Draw background if exists
     if (backgroundImage) {
         ctx.drawImage(backgroundImage, 0, 0, config.width, config.height);
@@ -728,6 +730,8 @@ function exportToDataUrl(canvas, backgroundImage, images, config, format = 'imag
     if (config.printableArea) {
         ctx.restore();
     }
+    // Restore from scale
+    ctx.restore();
     return canvas.toDataURL(format, quality);
 }
 function createOffscreenCanvas(width, height) {
@@ -750,7 +754,6 @@ const DEFAULT_CONFIG = {
     width: 400,
     height: 500,
     minImageSize: 20,
-    maxImageSize: 800,
     allowRotation: false,
     acceptedFileTypes: ["image/png", "image/jpeg", "image/webp", "image/gif"],
     maxFileSize: 10 * 1024 * 1024
@@ -804,13 +807,33 @@ function TShirtBuilder({ frontBgImage, backBgImage, config: configProp, onChange
         config,
         onChange: handleImagesChange
     });
-    const handleExport = React.useCallback(() => {
+    const handleExport = React.useCallback(async () => {
         if (!onExport)
             return;
-        const canvas = createOffscreenCanvas(config.width, config.height);
-        const dataUrl = exportToDataUrl(canvas, bgImage, images, config);
-        onExport(dataUrl, currentView);
-    }, [bgImage, images, config, onExport, currentView]);
+        const scale = config.exportScale || 1;
+        const canvas = createOffscreenCanvas(config.width * scale, config.height * scale);
+        // Helper to load an image
+        const loadImage = (src) => {
+            if (!src)
+                return Promise.resolve(null);
+            return new Promise((resolve) => {
+                const img = new Image();
+                img.onload = () => resolve(img);
+                img.onerror = () => resolve(null);
+                img.src = src;
+            });
+        };
+        // Load both background images
+        const [frontBg, backBg] = await Promise.all([
+            loadImage(frontBgImage),
+            loadImage(backBgImage)
+        ]);
+        // Export front
+        const frontDataUrl = exportToDataUrl(canvas, frontBg, viewImages.front, config);
+        // Export back
+        const backDataUrl = exportToDataUrl(canvas, backBg, viewImages.back, config);
+        onExport({ front: frontDataUrl, back: backDataUrl });
+    }, [config, onExport, frontBgImage, backBgImage, viewImages]);
     const handleContainerClick = React.useCallback((e) => {
         // Deselect if clicking on empty area
         if (e.target === containerRef.current) {

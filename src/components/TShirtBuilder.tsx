@@ -21,7 +21,6 @@ const DEFAULT_CONFIG: EditorConfig = {
   width: 400,
   height: 500,
   minImageSize: 20,
-  maxImageSize: 800,
   allowRotation: false,
   acceptedFileTypes: ["image/png", "image/jpeg", "image/webp", "image/gif"],
   maxFileSize: 10 * 1024 * 1024
@@ -109,13 +108,37 @@ export function TShirtBuilder({
     onChange: handleImagesChange
   });
 
-  const handleExport = useCallback(() => {
+  const handleExport = useCallback(async () => {
     if (!onExport) return;
 
-    const canvas = createOffscreenCanvas(config.width, config.height);
-    const dataUrl = exportToDataUrl(canvas, bgImage, images, config);
-    onExport(dataUrl, currentView);
-  }, [bgImage, images, config, onExport, currentView]);
+    const scale = config.exportScale || 1;
+    const canvas = createOffscreenCanvas(config.width * scale, config.height * scale);
+
+    // Helper to load an image
+    const loadImage = (src: string | undefined): Promise<HTMLImageElement | null> => {
+      if (!src) return Promise.resolve(null);
+      return new Promise((resolve) => {
+        const img = new Image();
+        img.onload = () => resolve(img);
+        img.onerror = () => resolve(null);
+        img.src = src;
+      });
+    };
+
+    // Load both background images
+    const [frontBg, backBg] = await Promise.all([
+      loadImage(frontBgImage),
+      loadImage(backBgImage)
+    ]);
+
+    // Export front
+    const frontDataUrl = exportToDataUrl(canvas, frontBg, viewImages.front, config);
+
+    // Export back
+    const backDataUrl = exportToDataUrl(canvas, backBg, viewImages.back, config);
+
+    onExport({ front: frontDataUrl, back: backDataUrl });
+  }, [config, onExport, frontBgImage, backBgImage, viewImages]);
 
   const handleContainerClick = useCallback(
     (e: React.MouseEvent) => {

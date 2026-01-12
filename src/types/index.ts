@@ -45,10 +45,10 @@ export interface EditorConfig {
   printableArea?: BoundingBox;
   /** Minimum image size in pixels */
   minImageSize?: number;
-  /** Maximum image size in pixels */
-  maxImageSize?: number;
   /** Whether to allow rotation */
   allowRotation?: boolean;
+  /** Export scale multiplier for higher quality (e.g., 2 = 2x resolution) */
+  exportScale?: number;
   /** Accepted file types for upload */
   acceptedFileTypes?: string[];
   /** Maximum file size in bytes */
@@ -64,8 +64,8 @@ export interface TShirtBuilderProps {
   config?: Partial<EditorConfig>;
   /** Callback when images change (includes both views) */
   onChange?: (images: ViewImages, currentView: TShirtView) => void;
-  /** Callback when export is requested */
-  onExport?: (dataUrl: string, view: TShirtView) => void;
+  /** Callback when export is requested (returns both front and back) */
+  onExport?: (images: { front: string; back: string }) => void;
   /** Custom class name */
   className?: string;
   /** Custom styles */

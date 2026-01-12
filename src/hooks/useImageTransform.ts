@@ -35,12 +35,11 @@ export function useImageTransform({ images, config, onChange }: UseImageTransfor
     (newTransform: ImageTransform): ImageTransform => {
       const { position, size, rotation } = newTransform;
 
-      // Only clamp size to min/max, allow position to be anywhere
+      // Only clamp size to min, allow position to be anywhere
       const minSize = config.minImageSize || 20;
-      const maxSize = config.maxImageSize || Math.max(config.width, config.height);
 
-      const clampedWidth = Math.max(minSize, Math.min(maxSize, size.width));
-      const clampedHeight = Math.max(minSize, Math.min(maxSize, size.height));
+      const clampedWidth = Math.max(minSize, size.width);
+      const clampedHeight = Math.max(minSize, size.height);
 
       return {
         position: { x: position.x, y: position.y },
@@ -116,7 +115,6 @@ export function useImageTransform({ images, config, onChange }: UseImageTransfor
           const { handle } = dragState;
           const aspectRatio = image.naturalWidth / image.naturalHeight;
           const minSize = config.minImageSize || 20;
-          const maxSize = config.maxImageSize || Math.max(config.width, config.height);
 
           let newWidth = dragState.startTransform.size.width;
           let newX = dragState.startTransform.position.x;
@@ -134,8 +132,8 @@ export function useImageTransform({ images, config, onChange }: UseImageTransfor
               break;
           }
 
-          // Clamp width first
-          const clampedWidth = Math.max(minSize, Math.min(maxSize, newWidth));
+          // Clamp width to minimum only
+          const clampedWidth = Math.max(minSize, newWidth);
           const clampedHeight = clampedWidth / aspectRatio;
 
           // Calculate position based on clamped size

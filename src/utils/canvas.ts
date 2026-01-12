@@ -8,13 +8,18 @@ export function exportToDataUrl(
   format: 'image/png' | 'image/jpeg' = 'image/png',
   quality = 0.92
 ): string {
+  const scale = config.exportScale || 1;
   const ctx = canvas.getContext('2d');
   if (!ctx) {
     throw new Error('Failed to get canvas context');
   }
 
   // Clear canvas
-  ctx.clearRect(0, 0, config.width, config.height);
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  // Scale all drawing operations
+  ctx.save();
+  ctx.scale(scale, scale);
 
   // Draw background if exists
   if (backgroundImage) {
@@ -66,6 +71,9 @@ export function exportToDataUrl(
   if (config.printableArea) {
     ctx.restore();
   }
+
+  // Restore from scale
+  ctx.restore();
 
   return canvas.toDataURL(format, quality);
 }
