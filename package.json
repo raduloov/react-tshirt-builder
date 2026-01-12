@@ -1,6 +1,7 @@
 {
   "name": "react-tshirt-image-editor",
-  "version": "1.0.0",
+  "version": "1.0.1",
+  "type": "module",
   "description": "A React component for uploading, positioning, and resizing images on t-shirt templates",
   "main": "dist/index.cjs.js",
   "module": "dist/index.esm.js",
