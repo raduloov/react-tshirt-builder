@@ -566,38 +566,106 @@ function useResponsive(config) {
     return state;
 }
 
-const HANDLE_SIZE = 10;
+// Size configurations
+const HANDLE_SIZE_DESKTOP = 10;
+const HANDLE_SIZE_MOBILE_VISUAL = 14; // Visual size on mobile
+const HANDLE_SIZE_MOBILE_HIT = 44; // Touch target size (Apple HIG recommendation)
+const ROTATION_HANDLE_OFFSET_DESKTOP = 34;
+const ROTATION_HANDLE_OFFSET_MOBILE = 50;
 const ACCENT_COLOR = '#4A4A4A'; // dark gray - subtle and professional
 // SVG rotate cursor icon encoded as data URI
 const ROTATE_CURSOR = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23333' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8'/%3E%3Cpath d='M21 3v5h-5'/%3E%3C/svg%3E") 12 12, crosshair`;
-const handleStyle = {
-    position: 'absolute',
-    width: HANDLE_SIZE,
-    height: HANDLE_SIZE,
-    backgroundColor: '#ffffff',
-    border: `2px solid ${ACCENT_COLOR}`,
-    borderRadius: '50%',
-    boxSizing: 'border-box',
-    boxShadow: '0 2px 10px rgba(0, 0, 0, 0.15)',
-    transition: 'transform 0.3s ease-out, box-shadow 0.3s ease-out',
-    // Prevent touch behaviors on handles
-    touchAction: 'none',
-};
-const rotateHandleStyle = {
-    position: 'absolute',
-    width: HANDLE_SIZE + 2,
-    height: HANDLE_SIZE + 2,
-    backgroundColor: ACCENT_COLOR,
-    border: '2px solid #fff',
-    borderRadius: '50%',
-    boxSizing: 'border-box',
-    cursor: ROTATE_CURSOR,
-    boxShadow: '0 2px 10px rgba(0, 0, 0, 0.2)',
-    // Prevent touch behaviors on rotate handle
-    touchAction: 'none',
-};
-function Controls({ transform, allowRotation, onPointerDown }) {
+// Helper to create handle styles based on mobile state and active state
+function getHandleStyle(isMobile, isActive) {
+    const visualSize = isMobile ? HANDLE_SIZE_MOBILE_VISUAL : HANDLE_SIZE_DESKTOP;
+    return {
+        position: 'absolute',
+        width: visualSize,
+        height: visualSize,
+        backgroundColor: '#ffffff',
+        border: `2px solid ${ACCENT_COLOR}`,
+        borderRadius: '50%',
+        boxSizing: 'border-box',
+        boxShadow: isActive
+            ? '0 4px 14px rgba(0, 0, 0, 0.25)'
+            : '0 2px 10px rgba(0, 0, 0, 0.15)',
+        transition: 'transform 0.15s ease-out, box-shadow 0.15s ease-out',
+        transform: isActive ? 'scale(1.2)' : 'scale(1)',
+        touchAction: 'none',
+    };
+}
+// Helper to create rotation handle styles based on mobile state and active state
+function getRotateHandleStyle(isMobile, isActive) {
+    const visualSize = isMobile ? HANDLE_SIZE_MOBILE_VISUAL + 4 : HANDLE_SIZE_DESKTOP + 2;
+    return {
+        position: 'absolute',
+        width: visualSize,
+        height: visualSize,
+        backgroundColor: ACCENT_COLOR,
+        border: '2px solid #fff',
+        borderRadius: '50%',
+        boxSizing: 'border-box',
+        cursor: ROTATE_CURSOR,
+        boxShadow: isActive
+            ? '0 4px 14px rgba(0, 0, 0, 0.3)'
+            : '0 2px 10px rgba(0, 0, 0, 0.2)',
+        transition: 'transform 0.15s ease-out, box-shadow 0.15s ease-out',
+        transform: isActive ? 'scale(1.2)' : 'scale(1)',
+        touchAction: 'none',
+    };
+}
+// Helper to create invisible touch target style for mobile
+function getTouchTargetStyle(isMobile, position) {
+    if (!isMobile)
+        return {};
+    const hitSize = HANDLE_SIZE_MOBILE_HIT;
+    return {
+        position: 'absolute',
+        width: hitSize,
+        height: hitSize,
+        backgroundColor: 'transparent',
+        borderRadius: '50%',
+        // Center the touch target around the visual handle
+        margin: -15,
+        touchAction: 'none',
+        cursor: position === 'rotate' ? ROTATE_CURSOR : getCursorForHandle(position),
+    };
+}
+// Get cursor style for resize handles
+function getCursorForHandle(position) {
+    switch (position) {
+        case 'nw':
+        case 'se':
+            return 'nwse-resize';
+        case 'ne':
+        case 'sw':
+            return 'nesw-resize';
+        default:
+            return 'pointer';
+    }
+}
+function Controls({ transform, allowRotation, onPointerDown, isMobile = false }) {
     const { position, size, rotation } = transform;
+    // Track which handle is currently active for touch feedback
+    const [activeHandle, setActiveHandle] = React.useState(null);
+    // Wrapper for pointer down that adds touch feedback
+    const handlePointerDownWithFeedback = React.useCallback((e, mode, handle) => {
+        setActiveHandle(handle || mode || null);
+        onPointerDown(e, mode, handle);
+        // Listen for pointer up to clear active state
+        const clearActive = () => {
+            setActiveHandle(null);
+            document.removeEventListener('pointerup', clearActive);
+            document.removeEventListener('pointercancel', clearActive);
+        };
+        document.addEventListener('pointerup', clearActive);
+        document.addEventListener('pointercancel', clearActive);
+    }, [onPointerDown]);
+    // Calculate visual and positioning sizes based on mobile state
+    const visualSize = isMobile ? HANDLE_SIZE_MOBILE_VISUAL : HANDLE_SIZE_DESKTOP;
+    const rotationOffset = isMobile ? ROTATION_HANDLE_OFFSET_MOBILE : ROTATION_HANDLE_OFFSET_DESKTOP;
+    // On mobile, position handles slightly outside the image bounds for better accessibility
+    const handleOutset = isMobile ? 4 : 0;
     const containerStyle = {
         position: 'absolute',
         left: position.x,
@@ -611,48 +679,86 @@ function Controls({ transform, allowRotation, onPointerDown }) {
     const handles = [
         {
             position: 'nw',
-            style: { top: -HANDLE_SIZE / 2, left: -HANDLE_SIZE / 2, cursor: 'nwse-resize' },
+            style: {
+                top: -visualSize / 2 - handleOutset,
+                left: -visualSize / 2 - handleOutset,
+                cursor: 'nwse-resize',
+            },
         },
         {
             position: 'ne',
-            style: { top: -HANDLE_SIZE / 2, right: -HANDLE_SIZE / 2, cursor: 'nesw-resize' },
+            style: {
+                top: -visualSize / 2 - handleOutset,
+                right: -visualSize / 2 - handleOutset,
+                cursor: 'nesw-resize',
+            },
         },
         {
             position: 'sw',
-            style: { bottom: -HANDLE_SIZE / 2, left: -HANDLE_SIZE / 2, cursor: 'nesw-resize' },
+            style: {
+                bottom: -visualSize / 2 - handleOutset,
+                left: -visualSize / 2 - handleOutset,
+                cursor: 'nesw-resize',
+            },
         },
         {
             position: 'se',
-            style: { bottom: -HANDLE_SIZE / 2, right: -HANDLE_SIZE / 2, cursor: 'nwse-resize' },
+            style: {
+                bottom: -visualSize / 2 - handleOutset,
+                right: -visualSize / 2 - handleOutset,
+                cursor: 'nwse-resize',
+            },
         },
     ];
+    // Selection border - thicker and more visible on mobile
     const borderStyle = {
         position: 'absolute',
         inset: -1,
-        border: `2px solid ${ACCENT_COLOR}`,
+        border: `${isMobile ? 2.5 : 2}px solid ${ACCENT_COLOR}`,
         borderRadius: '4px',
         pointerEvents: 'none',
-        boxShadow: '0 2px 10px rgba(0, 0, 0, 0.1)',
+        boxShadow: isMobile
+            ? '0 0 0 1px rgba(255, 255, 255, 0.5), 0 2px 12px rgba(0, 0, 0, 0.15)'
+            : '0 2px 10px rgba(0, 0, 0, 0.1)',
     };
-    return (jsxRuntime.jsxs("div", { style: containerStyle, children: [jsxRuntime.jsx("div", { style: borderStyle }), handles.map(({ position: pos, style }) => (jsxRuntime.jsx("div", { style: { ...handleStyle, ...style, pointerEvents: 'auto' }, onPointerDown: (e) => onPointerDown(e, 'resize', pos), onContextMenu: (e) => e.preventDefault() }, pos))), allowRotation && (jsxRuntime.jsxs(jsxRuntime.Fragment, { children: [jsxRuntime.jsx("div", { style: {
+    // Rotation stem sizing
+    const stemHeight = isMobile ? 28 : 18;
+    const stemTop = isMobile ? -38 : -28;
+    return (jsxRuntime.jsxs("div", { style: containerStyle, children: [jsxRuntime.jsx("div", { style: borderStyle }), handles.map(({ position: pos, style }) => {
+                const isActive = activeHandle === pos;
+                const handleStyles = getHandleStyle(isMobile, isActive);
+                return (jsxRuntime.jsx("div", { style: {
+                        ...handleStyles,
+                        ...style,
+                        pointerEvents: 'auto',
+                    }, onPointerDown: (e) => handlePointerDownWithFeedback(e, 'resize', pos), onContextMenu: (e) => e.preventDefault(), children: isMobile && (jsxRuntime.jsx("div", { style: getTouchTargetStyle(isMobile, pos), onPointerDown: (e) => {
+                            e.stopPropagation();
+                            handlePointerDownWithFeedback(e, 'resize', pos);
+                        }, onContextMenu: (e) => e.preventDefault() })) }, pos));
+            }), allowRotation && (jsxRuntime.jsxs(jsxRuntime.Fragment, { children: [jsxRuntime.jsx("div", { style: {
                             position: 'absolute',
-                            top: -28,
+                            top: stemTop,
                             left: '50%',
-                            width: 1.5,
-                            height: 18,
+                            width: isMobile ? 2 : 1.5,
+                            height: stemHeight,
                             backgroundColor: ACCENT_COLOR,
                             transform: 'translateX(-50%)',
                             opacity: 0.8,
+                            pointerEvents: 'none',
                         } }), jsxRuntime.jsx("div", { style: {
-                            ...rotateHandleStyle,
-                            top: -34 - HANDLE_SIZE / 2,
+                            ...getRotateHandleStyle(isMobile, activeHandle === 'rotate'),
+                            top: -rotationOffset - visualSize / 2,
                             left: '50%',
                             transform: 'translateX(-50%)',
                             pointerEvents: 'auto',
-                        }, onPointerDown: (e) => onPointerDown(e, 'rotate'), onContextMenu: (e) => e.preventDefault() })] }))] }));
+                        }, onPointerDown: (e) => handlePointerDownWithFeedback(e, 'rotate'), onContextMenu: (e) => e.preventDefault(), children: isMobile && (jsxRuntime.jsx("div", { style: getTouchTargetStyle(isMobile, 'rotate'), onPointerDown: (e) => {
+                                e.stopPropagation();
+                                handlePointerDownWithFeedback(e, 'rotate');
+                            }, onContextMenu: (e) => e.preventDefault() })) })] }))] }));
 }
 
-const ITEM_HEIGHT = 56; // Height of each layer item in pixels
+const ITEM_HEIGHT = 56; // Height of each layer item in pixels (desktop)
+const MOBILE_ITEM_HEIGHT = 64; // Height of each layer item in pixels (mobile, min 48px for touch)
 // teniski-varna color palette
 const COLORS$1 = {
     ACCENT: "#FAC000",
@@ -717,23 +823,8 @@ const emptyStyle = {
     color: COLORS$1.GRAY,
     fontSize: "13px"
 };
-const dragHandleStyle = {
-    display: "flex",
-    flexDirection: "column",
-    gap: "3px",
-    cursor: "grab",
-    padding: "6px 4px",
-    borderRadius: "4px",
-    transition: "background-color 0.3s ease-out",
-    // Prevent touch behaviors on drag handle
-    touchAction: "none"
-};
-const dragLineStyle = {
-    width: "10px",
-    height: "2px",
-    backgroundColor: COLORS$1.GRAY,
-    borderRadius: "1px"
-};
+// Note: dragHandleStyle and dragLineStyle are now dynamic functions inside the component
+// to support mobile-responsive sizing (getDragHandleStyle and getDragLineStyle)
 // Plus icon for add button
 const PlusIcon = () => (jsxRuntime.jsx("svg", { width: "16", height: "16", viewBox: "0 0 16 16", fill: "none", xmlns: "http://www.w3.org/2000/svg", children: jsxRuntime.jsx("path", { d: "M8 3v10M3 8h10", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round" }) }));
 // Front icon
@@ -762,11 +853,15 @@ const addButtonStyle = {
     boxShadow: "0 2px 10px rgba(250, 192, 0, 0.3)",
     transition: "filter 0.1s ease-out, transform 0.1s ease-out"
 };
-function LayerPanel({ images, selectedId, onSelect, onDelete, onReorder, onAddImage, currentView, onViewChange, compact = false }) {
+function LayerPanel({ images, selectedId, onSelect, onDelete, onReorder, onAddImage, currentView, onViewChange, compact = false, isMobile = false }) {
     // Adjust panel style for compact mode
     const dynamicPanelStyle = compact
         ? { ...panelStyle, width: '100%', borderRadius: '0 0 10px 10px', boxShadow: 'none' }
         : panelStyle;
+    // Use mobile item height for touch-friendly targets
+    const itemHeight = isMobile ? MOBILE_ITEM_HEIGHT : ITEM_HEIGHT;
+    // Swipe-to-delete state
+    const [swipeState, setSwipeState] = React.useState(null);
     const [dragState, setDragState] = React.useState(null);
     const listRef = React.useRef(null);
     // Reverse to show top layer first (last in array = top = first in list)
@@ -811,7 +906,7 @@ function LayerPanel({ images, selectedId, onSelect, onDelete, onReorder, onAddIm
             }
         }
         const deltaY = dragState.currentY - dragState.startY;
-        const indexDelta = Math.round(deltaY / ITEM_HEIGHT);
+        const indexDelta = Math.round(deltaY / itemHeight);
         const newReversedIndex = Math.max(0, Math.min(reversedImages.length - 1, dragState.draggingIndex + indexDelta));
         if (newReversedIndex !== dragState.draggingIndex) {
             // Convert reversed indices to original indices
@@ -820,7 +915,7 @@ function LayerPanel({ images, selectedId, onSelect, onDelete, onReorder, onAddIm
             onReorder(fromOriginal, toOriginal);
         }
         setDragState(null);
-    }, [dragState, reversedImages.length, images.length, onReorder]);
+    }, [dragState, reversedImages.length, images.length, onReorder, itemHeight]);
     React.useEffect(() => {
         if (dragState) {
             window.addEventListener("pointermove", handlePointerMove);
@@ -837,91 +932,154 @@ function LayerPanel({ images, selectedId, onSelect, onDelete, onReorder, onAddIm
         e.stopPropagation();
         onDelete(id);
     };
+    // Swipe-to-delete handlers (mobile only)
+    const handleSwipeStart = React.useCallback((e, id) => {
+        if (!isMobile)
+            return;
+        // Only start swipe if not on drag handle (drag handle is on the left)
+        const target = e.target;
+        if (target.closest('[data-drag-handle]'))
+            return;
+        setSwipeState({
+            id,
+            startX: e.clientX,
+            currentX: e.clientX,
+            pointerId: e.pointerId
+        });
+    }, [isMobile]);
+    const handleSwipeMove = React.useCallback((e) => {
+        if (!swipeState)
+            return;
+        if (e.pointerId !== swipeState.pointerId)
+            return;
+        setSwipeState(prev => prev ? {
+            ...prev,
+            currentX: e.clientX
+        } : null);
+    }, [swipeState]);
+    const handleSwipeEnd = React.useCallback(() => {
+        if (!swipeState)
+            return;
+        const deltaX = swipeState.currentX - swipeState.startX;
+        // Delete threshold: swipe left more than 100px
+        if (deltaX < -100) {
+            onDelete(swipeState.id);
+        }
+        setSwipeState(null);
+    }, [swipeState, onDelete]);
+    // Add swipe listeners
+    React.useEffect(() => {
+        if (swipeState) {
+            window.addEventListener("pointermove", handleSwipeMove);
+            window.addEventListener("pointerup", handleSwipeEnd);
+            window.addEventListener("pointercancel", handleSwipeEnd);
+            return () => {
+                window.removeEventListener("pointermove", handleSwipeMove);
+                window.removeEventListener("pointerup", handleSwipeEnd);
+                window.removeEventListener("pointercancel", handleSwipeEnd);
+            };
+        }
+    }, [swipeState, handleSwipeMove, handleSwipeEnd]);
     // Calculate visual positions during drag
-    const getItemStyle = (reversedIndex, isSelected) => {
+    const getItemStyle = (reversedIndex, isSelected, swipeOffset = 0) => {
         const isDragging = (dragState === null || dragState === void 0 ? void 0 : dragState.draggingIndex) === reversedIndex;
-        let transform = "translateY(0)";
+        let transform = swipeOffset !== 0 ? `translateX(${swipeOffset}px)` : "translateY(0)";
         let zIndex = 1;
         let boxShadow = isSelected
             ? `0 0 0 2px ${COLORS$1.ACCENT}, 0 2px 10px rgba(250, 192, 0, 0.15)`
             : "0 1px 3px rgba(0, 0, 0, 0.05)";
         let transition = "transform 0.3s ease-out, background-color 0.3s ease-out, box-shadow 0.3s ease-out, border-color 0.3s ease-out";
+        // Calculate background color for swipe feedback
+        let backgroundColor = isDragging ? COLORS$1.WHITE : isSelected ? "#FEF9E7" : COLORS$1.WHITE;
+        if (swipeOffset < -50) {
+            // Red tint as user swipes to delete
+            const intensity = Math.min(1, Math.abs(swipeOffset + 50) / 50);
+            backgroundColor = `rgba(255, ${235 - intensity * 100}, ${235 - intensity * 100}, 1)`;
+        }
         if (dragState) {
             if (isDragging) {
-                // The dragged item follows the mouse
+                // The dragged item follows the pointer - enhanced visual feedback
                 const deltaY = dragState.currentY - dragState.startY;
-                transform = `translateY(${deltaY}px) scale(1.02)`;
+                transform = `translateY(${deltaY}px) scale(1.03)`;
                 zIndex = 100;
-                boxShadow = "0 8px 24px rgba(0,0,0,0.15), 0 4px 8px rgba(0, 0, 0, 0.1)";
-                transition = "box-shadow 0.3s ease-out";
+                boxShadow = "0 12px 28px rgba(0,0,0,0.2), 0 6px 12px rgba(0, 0, 0, 0.12)";
+                transition = "box-shadow 0.3s ease-out, scale 0.15s ease-out";
+                backgroundColor = "#FEF9E7"; // Highlight dragged item
             }
             else {
-                // Other items shift to make room
+                // Other items shift to make room - smoother animation
                 const draggedIndex = dragState.draggingIndex;
                 const deltaY = dragState.currentY - dragState.startY;
-                const targetIndex = Math.round(deltaY / ITEM_HEIGHT) + draggedIndex;
+                const targetIndex = Math.round(deltaY / itemHeight) + draggedIndex;
                 const clampedTarget = Math.max(0, Math.min(reversedImages.length - 1, targetIndex));
                 if (draggedIndex < reversedIndex && clampedTarget >= reversedIndex) {
                     // Dragged item moved down past this item - shift up
-                    transform = `translateY(-${ITEM_HEIGHT}px)`;
+                    transform = `translateY(-${itemHeight}px)`;
                 }
                 else if (draggedIndex > reversedIndex && clampedTarget <= reversedIndex) {
                     // Dragged item moved up past this item - shift down
-                    transform = `translateY(${ITEM_HEIGHT}px)`;
+                    transform = `translateY(${itemHeight}px)`;
                 }
             }
         }
         return {
             display: "flex",
             alignItems: "center",
-            gap: "10px",
-            padding: "10px 12px",
+            gap: isMobile ? "12px" : "10px",
+            padding: isMobile ? "12px 14px" : "10px 12px",
             marginBottom: "6px",
             borderRadius: "10px",
             border: `1px solid ${isSelected ? COLORS$1.ACCENT : COLORS$1.LIGHT_GRAY}`,
-            backgroundColor: isDragging ? COLORS$1.WHITE : isSelected ? "#FEF9E7" : COLORS$1.WHITE,
+            backgroundColor,
             cursor: "pointer",
             position: "relative",
             zIndex,
             transform,
             transition,
             boxShadow,
-            height: `${ITEM_HEIGHT}px`,
-            boxSizing: "border-box"
+            height: `${itemHeight}px`,
+            boxSizing: "border-box",
+            overflow: "hidden"
         };
     };
+    // Mobile-responsive thumbnail size
+    const thumbnailSize = isMobile ? 44 : 36;
     const thumbnailStyle = {
-        width: "36px",
-        height: "36px",
+        width: `${thumbnailSize}px`,
+        height: `${thumbnailSize}px`,
         objectFit: "contain",
         backgroundColor: COLORS$1.LIGHT_GRAY,
         borderRadius: "8px",
         border: `1px solid ${COLORS$1.LIGHT_GRAY}`,
-        padding: "2px"
+        padding: "2px",
+        flexShrink: 0
     };
     const labelStyle = {
         flex: 1,
-        fontSize: "13px",
+        fontSize: isMobile ? "14px" : "13px",
         fontWeight: 500,
         color: COLORS$1.DARK_GRAY,
         overflow: "hidden",
         textOverflow: "ellipsis",
         whiteSpace: "nowrap"
     };
+    // Mobile-responsive delete button (min 44px touch target)
+    const deleteButtonSize = isMobile ? 44 : 28;
     const deleteButtonStyle = {
-        width: "28px",
-        height: "28px",
+        width: `${deleteButtonSize}px`,
+        height: `${deleteButtonSize}px`,
         padding: 0,
         border: "none",
         borderRadius: "50%",
         backgroundColor: "transparent",
         color: COLORS$1.GRAY,
         cursor: "pointer",
-        fontSize: "16px",
+        fontSize: isMobile ? "18px" : "16px",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        transition: "all 0.3s ease-out"
+        transition: "all 0.3s ease-out",
+        flexShrink: 0
     };
     const deleteButtonHoverStyle = {
         ...deleteButtonStyle,
@@ -929,6 +1087,26 @@ function LayerPanel({ images, selectedId, onSelect, onDelete, onReorder, onAddIm
         color: COLORS$1.RED,
         transform: "scale(1.1)"
     };
+    // Mobile-responsive drag handle styles
+    const getDragHandleStyle = (isDragging) => ({
+        display: "flex",
+        flexDirection: "column",
+        gap: isMobile ? "4px" : "3px",
+        cursor: isDragging ? "grabbing" : "grab",
+        padding: isMobile ? "10px 8px" : "6px 4px",
+        borderRadius: "4px",
+        transition: "background-color 0.3s ease-out",
+        touchAction: "none",
+        backgroundColor: isDragging ? "#e2e8f0" : "transparent",
+        minWidth: isMobile ? "32px" : "18px",
+        alignItems: "center"
+    });
+    const getDragLineStyle = () => ({
+        width: isMobile ? "14px" : "10px",
+        height: isMobile ? "3px" : "2px",
+        backgroundColor: COLORS$1.GRAY,
+        borderRadius: "1px"
+    });
     // Delete button with hover state
     const [hoveredDeleteId, setHoveredDeleteId] = React.useState(null);
     const [addButtonHovered, setAddButtonHovered] = React.useState(false);
@@ -953,11 +1131,27 @@ function LayerPanel({ images, selectedId, onSelect, onDelete, onReorder, onAddIm
                     const originalIndex = images.length - 1 - reversedIndex;
                     const isSelected = image.id === selectedId;
                     const isDragging = (dragState === null || dragState === void 0 ? void 0 : dragState.draggingIndex) === reversedIndex;
-                    return (jsxRuntime.jsxs("li", { style: getItemStyle(reversedIndex, isSelected), onClick: () => !dragState && onSelect(image.id), children: [jsxRuntime.jsxs("div", { style: {
-                                    ...dragHandleStyle,
-                                    cursor: isDragging ? "grabbing" : "grab",
-                                    backgroundColor: isDragging ? "#e2e8f0" : "transparent"
-                                }, onPointerDown: e => handlePointerDown(e, reversedIndex), onContextMenu: e => e.preventDefault(), children: [jsxRuntime.jsx("div", { style: dragLineStyle }), jsxRuntime.jsx("div", { style: dragLineStyle }), jsxRuntime.jsx("div", { style: dragLineStyle })] }), jsxRuntime.jsx("img", { src: image.src, alt: `Layer ${originalIndex + 1}`, style: thumbnailStyle, draggable: false }), jsxRuntime.jsxs("span", { style: labelStyle, children: ["\u0421\u043B\u043E\u0439 ", originalIndex + 1] }), jsxRuntime.jsx("button", { style: hoveredDeleteId === image.id ? deleteButtonHoverStyle : deleteButtonStyle, onClick: e => handleDelete(e, image.id), onMouseEnter: () => setHoveredDeleteId(image.id), onMouseLeave: () => setHoveredDeleteId(null), title: "\u0418\u0437\u0442\u0440\u0438\u0439 \u0441\u043B\u043E\u0439", children: jsxRuntime.jsx(DeleteIcon, {}) })] }, image.id));
+                    // Calculate swipe offset for this item
+                    const swipeOffset = (swipeState === null || swipeState === void 0 ? void 0 : swipeState.id) === image.id
+                        ? Math.min(0, swipeState.currentX - swipeState.startX) // Only allow left swipe
+                        : 0;
+                    return (jsxRuntime.jsxs("li", { style: getItemStyle(reversedIndex, isSelected, swipeOffset), onClick: () => !dragState && !swipeState && onSelect(image.id), onPointerDown: e => handleSwipeStart(e, image.id), onContextMenu: e => e.preventDefault(), children: [isMobile && swipeOffset < -20 && (jsxRuntime.jsx("div", { style: {
+                                    position: "absolute",
+                                    right: 0,
+                                    top: 0,
+                                    bottom: 0,
+                                    width: Math.abs(swipeOffset),
+                                    backgroundColor: swipeOffset < -100 ? COLORS$1.RED : "#FFEBEB",
+                                    display: "flex",
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                    color: swipeOffset < -100 ? COLORS$1.WHITE : COLORS$1.RED,
+                                    transition: "background-color 0.2s ease-out",
+                                    borderRadius: "0 10px 10px 0"
+                                }, children: jsxRuntime.jsx(DeleteIcon, {}) })), jsxRuntime.jsxs("div", { "data-drag-handle": true, style: getDragHandleStyle(isDragging), onPointerDown: e => {
+                                    e.stopPropagation();
+                                    handlePointerDown(e, reversedIndex);
+                                }, onContextMenu: e => e.preventDefault(), children: [jsxRuntime.jsx("div", { style: getDragLineStyle() }), jsxRuntime.jsx("div", { style: getDragLineStyle() }), jsxRuntime.jsx("div", { style: getDragLineStyle() })] }), jsxRuntime.jsx("img", { src: image.src, alt: `Layer ${originalIndex + 1}`, style: thumbnailStyle, draggable: false, loading: "lazy", decoding: "async" }), jsxRuntime.jsxs("span", { style: labelStyle, children: ["\u0421\u043B\u043E\u0439 ", originalIndex + 1] }), jsxRuntime.jsx("button", { style: hoveredDeleteId === image.id ? deleteButtonHoverStyle : deleteButtonStyle, onClick: e => handleDelete(e, image.id), onMouseEnter: () => setHoveredDeleteId(image.id), onMouseLeave: () => setHoveredDeleteId(null), onPointerDown: e => e.stopPropagation(), title: "\u0418\u0437\u0442\u0440\u0438\u0439 \u0441\u043B\u043E\u0439", children: jsxRuntime.jsx(DeleteIcon, {}) })] }, image.id));
                 }) }))] }));
 }
 
@@ -1475,10 +1669,10 @@ function TShirtBuilder({ frontBgImage, backBgImage, config: configProp, responsi
                                     }, children: jsxRuntime.jsx(LayerPanel, { images: images, selectedId: selectedId, onSelect: (id) => {
                                             selectImage(id);
                                             handleMobileImageInteraction();
-                                        }, onDelete: deleteImage, onReorder: reorderImage, onAddImage: openFilePicker, currentView: currentView, onViewChange: setCurrentView, compact: true }) })] })) : (jsxRuntime.jsx(LayerPanel, { images: images, selectedId: selectedId, onSelect: (id) => {
+                                        }, onDelete: deleteImage, onReorder: reorderImage, onAddImage: openFilePicker, currentView: currentView, onViewChange: setCurrentView, compact: true, isMobile: true }) })] })) : (jsxRuntime.jsx(LayerPanel, { images: images, selectedId: selectedId, onSelect: (id) => {
                                 selectImage(id);
                                 handleMobileImageInteraction();
-                            }, onDelete: deleteImage, onReorder: reorderImage, onAddImage: openFilePicker, currentView: currentView, onViewChange: setCurrentView, compact: false })) }), jsxRuntime.jsxs("div", { style: canvasColumnStyle, children: [jsxRuntime.jsxs("div", { ref: containerRef, style: containerStyle, onDrop: handleDrop, onDragOver: handleDragOver, onClick: handleContainerClick, children: [images.length === 0 && (jsxRuntime.jsx("div", { style: dropZoneStyle, children: jsxRuntime.jsxs("div", { style: {
+                            }, onDelete: deleteImage, onReorder: reorderImage, onAddImage: openFilePicker, currentView: currentView, onViewChange: setCurrentView, compact: false, isMobile: false })) }), jsxRuntime.jsxs("div", { style: canvasColumnStyle, children: [jsxRuntime.jsxs("div", { ref: containerRef, style: containerStyle, onDrop: handleDrop, onDragOver: handleDragOver, onClick: handleContainerClick, children: [images.length === 0 && (jsxRuntime.jsx("div", { style: dropZoneStyle, children: jsxRuntime.jsxs("div", { style: {
                                                 display: "flex",
                                                 flexDirection: "column",
                                                 alignItems: "center",
@@ -1560,7 +1754,7 @@ function TShirtBuilder({ frontBgImage, backBgImage, config: configProp, responsi
                                                         e.stopPropagation();
                                                         selectImage(imageData.id);
                                                         handleMobileImageInteraction();
-                                                    }, onContextMenu: e => e.preventDefault() }), isSelected && (jsxRuntime.jsx(Controls, { transform: scaledTransform, allowRotation: displayConfig.allowRotation || false, onPointerDown: (e, mode, handle) => handlePointerDown(e, imageData.id, mode, handle) }))] }, imageData.id));
+                                                    }, onContextMenu: e => e.preventDefault() }), isSelected && (jsxRuntime.jsx(Controls, { transform: scaledTransform, allowRotation: displayConfig.allowRotation || false, onPointerDown: (e, mode, handle) => handlePointerDown(e, imageData.id, mode, handle), isMobile: responsiveConfig.enabled && responsiveState.isMobile }))] }, imageData.id));
                                     }), displayConfig.printableArea && (jsxRuntime.jsx("div", { style: {
                                             position: "absolute",
                                             left: displayConfig.printableArea.minX,

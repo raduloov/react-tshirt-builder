@@ -12,9 +12,12 @@ interface LayerPanelProps {
   onViewChange: (view: TShirtView) => void;
   /** Compact mode for mobile drawer layout */
   compact?: boolean;
+  /** Mobile mode for touch-optimized controls */
+  isMobile?: boolean;
 }
 
-const ITEM_HEIGHT = 56; // Height of each layer item in pixels
+const ITEM_HEIGHT = 56; // Height of each layer item in pixels (desktop)
+const MOBILE_ITEM_HEIGHT = 64; // Height of each layer item in pixels (mobile, min 48px for touch)
 
 // teniski-varna color palette
 const COLORS = {
@@ -87,24 +90,8 @@ const emptyStyle: React.CSSProperties = {
   fontSize: "13px"
 };
 
-const dragHandleStyle: React.CSSProperties = {
-  display: "flex",
-  flexDirection: "column",
-  gap: "3px",
-  cursor: "grab",
-  padding: "6px 4px",
-  borderRadius: "4px",
-  transition: "background-color 0.3s ease-out",
-  // Prevent touch behaviors on drag handle
-  touchAction: "none"
-};
-
-const dragLineStyle: React.CSSProperties = {
-  width: "10px",
-  height: "2px",
-  backgroundColor: COLORS.GRAY,
-  borderRadius: "1px"
-};
+// Note: dragHandleStyle and dragLineStyle are now dynamic functions inside the component
+// to support mobile-responsive sizing (getDragHandleStyle and getDragLineStyle)
 
 // Plus icon for add button
 const PlusIcon = () => (
@@ -210,12 +197,25 @@ export function LayerPanel({
   onAddImage,
   currentView,
   onViewChange,
-  compact = false
+  compact = false,
+  isMobile = false
 }: LayerPanelProps) {
   // Adjust panel style for compact mode
   const dynamicPanelStyle: React.CSSProperties = compact
     ? { ...panelStyle, width: '100%', borderRadius: '0 0 10px 10px', boxShadow: 'none' }
     : panelStyle;
+
+  // Use mobile item height for touch-friendly targets
+  const itemHeight = isMobile ? MOBILE_ITEM_HEIGHT : ITEM_HEIGHT;
+
+  // Swipe-to-delete state
+  const [swipeState, setSwipeState] = useState<{
+    id: string;
+    startX: number;
+    currentX: number;
+    pointerId: number;
+  } | null>(null);
+
   const [dragState, setDragState] = useState<{
     draggingIndex: number;
     startY: number;
@@ -278,7 +278,7 @@ export function LayerPanel({
     }
 
     const deltaY = dragState.currentY - dragState.startY;
-    const indexDelta = Math.round(deltaY / ITEM_HEIGHT);
+    const indexDelta = Math.round(deltaY / itemHeight);
     const newReversedIndex = Math.max(0, Math.min(reversedImages.length - 1, dragState.draggingIndex + indexDelta));
 
     if (newReversedIndex !== dragState.draggingIndex) {
@@ -289,7 +289,7 @@ export function LayerPanel({
     }
 
     setDragState(null);
-  }, [dragState, reversedImages.length, images.length, onReorder]);
+  }, [dragState, reversedImages.length, images.length, onReorder, itemHeight]);
 
   useEffect(() => {
     if (dragState) {
@@ -310,11 +310,63 @@ export function LayerPanel({
     onDelete(id);
   };
 
+  // Swipe-to-delete handlers (mobile only)
+  const handleSwipeStart = useCallback((e: React.PointerEvent, id: string) => {
+    if (!isMobile) return;
+    // Only start swipe if not on drag handle (drag handle is on the left)
+    const target = e.target as HTMLElement;
+    if (target.closest('[data-drag-handle]')) return;
+
+    setSwipeState({
+      id,
+      startX: e.clientX,
+      currentX: e.clientX,
+      pointerId: e.pointerId
+    });
+  }, [isMobile]);
+
+  const handleSwipeMove = useCallback((e: PointerEvent) => {
+    if (!swipeState) return;
+    if (e.pointerId !== swipeState.pointerId) return;
+
+    setSwipeState(prev => prev ? {
+      ...prev,
+      currentX: e.clientX
+    } : null);
+  }, [swipeState]);
+
+  const handleSwipeEnd = useCallback(() => {
+    if (!swipeState) return;
+
+    const deltaX = swipeState.currentX - swipeState.startX;
+    // Delete threshold: swipe left more than 100px
+    if (deltaX < -100) {
+      onDelete(swipeState.id);
+    }
+
+    setSwipeState(null);
+  }, [swipeState, onDelete]);
+
+  // Add swipe listeners
+  useEffect(() => {
+    if (swipeState) {
+      window.addEventListener("pointermove", handleSwipeMove);
+      window.addEventListener("pointerup", handleSwipeEnd);
+      window.addEventListener("pointercancel", handleSwipeEnd);
+
+      return () => {
+        window.removeEventListener("pointermove", handleSwipeMove);
+        window.removeEventListener("pointerup", handleSwipeEnd);
+        window.removeEventListener("pointercancel", handleSwipeEnd);
+      };
+    }
+  }, [swipeState, handleSwipeMove, handleSwipeEnd]);
+
   // Calculate visual positions during drag
-  const getItemStyle = (reversedIndex: number, isSelected: boolean): React.CSSProperties => {
+  const getItemStyle = (reversedIndex: number, isSelected: boolean, swipeOffset: number = 0): React.CSSProperties => {
     const isDragging = dragState?.draggingIndex === reversedIndex;
 
-    let transform = "translateY(0)";
+    let transform = swipeOffset !== 0 ? `translateX(${swipeOffset}px)` : "translateY(0)";
     let zIndex = 1;
     let boxShadow = isSelected
       ? `0 0 0 2px ${COLORS.ACCENT}, 0 2px 10px rgba(250, 192, 0, 0.15)`
@@ -322,27 +374,36 @@ export function LayerPanel({
     let transition =
       "transform 0.3s ease-out, background-color 0.3s ease-out, box-shadow 0.3s ease-out, border-color 0.3s ease-out";
 
+    // Calculate background color for swipe feedback
+    let backgroundColor = isDragging ? COLORS.WHITE : isSelected ? "#FEF9E7" : COLORS.WHITE;
+    if (swipeOffset < -50) {
+      // Red tint as user swipes to delete
+      const intensity = Math.min(1, Math.abs(swipeOffset + 50) / 50);
+      backgroundColor = `rgba(255, ${235 - intensity * 100}, ${235 - intensity * 100}, 1)`;
+    }
+
     if (dragState) {
       if (isDragging) {
-        // The dragged item follows the mouse
+        // The dragged item follows the pointer - enhanced visual feedback
         const deltaY = dragState.currentY - dragState.startY;
-        transform = `translateY(${deltaY}px) scale(1.02)`;
+        transform = `translateY(${deltaY}px) scale(1.03)`;
         zIndex = 100;
-        boxShadow = "0 8px 24px rgba(0,0,0,0.15), 0 4px 8px rgba(0, 0, 0, 0.1)";
-        transition = "box-shadow 0.3s ease-out";
+        boxShadow = "0 12px 28px rgba(0,0,0,0.2), 0 6px 12px rgba(0, 0, 0, 0.12)";
+        transition = "box-shadow 0.3s ease-out, scale 0.15s ease-out";
+        backgroundColor = "#FEF9E7"; // Highlight dragged item
       } else {
-        // Other items shift to make room
+        // Other items shift to make room - smoother animation
         const draggedIndex = dragState.draggingIndex;
         const deltaY = dragState.currentY - dragState.startY;
-        const targetIndex = Math.round(deltaY / ITEM_HEIGHT) + draggedIndex;
+        const targetIndex = Math.round(deltaY / itemHeight) + draggedIndex;
         const clampedTarget = Math.max(0, Math.min(reversedImages.length - 1, targetIndex));
 
         if (draggedIndex < reversedIndex && clampedTarget >= reversedIndex) {
           // Dragged item moved down past this item - shift up
-          transform = `translateY(-${ITEM_HEIGHT}px)`;
+          transform = `translateY(-${itemHeight}px)`;
         } else if (draggedIndex > reversedIndex && clampedTarget <= reversedIndex) {
           // Dragged item moved up past this item - shift down
-          transform = `translateY(${ITEM_HEIGHT}px)`;
+          transform = `translateY(${itemHeight}px)`;
         }
       }
     }
@@ -350,36 +411,40 @@ export function LayerPanel({
     return {
       display: "flex",
       alignItems: "center",
-      gap: "10px",
-      padding: "10px 12px",
+      gap: isMobile ? "12px" : "10px",
+      padding: isMobile ? "12px 14px" : "10px 12px",
       marginBottom: "6px",
       borderRadius: "10px",
       border: `1px solid ${isSelected ? COLORS.ACCENT : COLORS.LIGHT_GRAY}`,
-      backgroundColor: isDragging ? COLORS.WHITE : isSelected ? "#FEF9E7" : COLORS.WHITE,
+      backgroundColor,
       cursor: "pointer",
       position: "relative",
       zIndex,
       transform,
       transition,
       boxShadow,
-      height: `${ITEM_HEIGHT}px`,
-      boxSizing: "border-box"
+      height: `${itemHeight}px`,
+      boxSizing: "border-box",
+      overflow: "hidden"
     };
   };
 
+  // Mobile-responsive thumbnail size
+  const thumbnailSize = isMobile ? 44 : 36;
   const thumbnailStyle: React.CSSProperties = {
-    width: "36px",
-    height: "36px",
+    width: `${thumbnailSize}px`,
+    height: `${thumbnailSize}px`,
     objectFit: "contain",
     backgroundColor: COLORS.LIGHT_GRAY,
     borderRadius: "8px",
     border: `1px solid ${COLORS.LIGHT_GRAY}`,
-    padding: "2px"
+    padding: "2px",
+    flexShrink: 0
   };
 
   const labelStyle: React.CSSProperties = {
     flex: 1,
-    fontSize: "13px",
+    fontSize: isMobile ? "14px" : "13px",
     fontWeight: 500,
     color: COLORS.DARK_GRAY,
     overflow: "hidden",
@@ -387,20 +452,23 @@ export function LayerPanel({
     whiteSpace: "nowrap"
   };
 
+  // Mobile-responsive delete button (min 44px touch target)
+  const deleteButtonSize = isMobile ? 44 : 28;
   const deleteButtonStyle: React.CSSProperties = {
-    width: "28px",
-    height: "28px",
+    width: `${deleteButtonSize}px`,
+    height: `${deleteButtonSize}px`,
     padding: 0,
     border: "none",
     borderRadius: "50%",
     backgroundColor: "transparent",
     color: COLORS.GRAY,
     cursor: "pointer",
-    fontSize: "16px",
+    fontSize: isMobile ? "18px" : "16px",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    transition: "all 0.3s ease-out"
+    transition: "all 0.3s ease-out",
+    flexShrink: 0
   };
 
   const deleteButtonHoverStyle: React.CSSProperties = {
@@ -409,6 +477,28 @@ export function LayerPanel({
     color: COLORS.RED,
     transform: "scale(1.1)"
   };
+
+  // Mobile-responsive drag handle styles
+  const getDragHandleStyle = (isDragging: boolean): React.CSSProperties => ({
+    display: "flex",
+    flexDirection: "column",
+    gap: isMobile ? "4px" : "3px",
+    cursor: isDragging ? "grabbing" : "grab",
+    padding: isMobile ? "10px 8px" : "6px 4px",
+    borderRadius: "4px",
+    transition: "background-color 0.3s ease-out",
+    touchAction: "none",
+    backgroundColor: isDragging ? "#e2e8f0" : "transparent",
+    minWidth: isMobile ? "32px" : "18px",
+    alignItems: "center"
+  });
+
+  const getDragLineStyle = (): React.CSSProperties => ({
+    width: isMobile ? "14px" : "10px",
+    height: isMobile ? "3px" : "2px",
+    backgroundColor: COLORS.GRAY,
+    borderRadius: "1px"
+  });
 
   // Delete button with hover state
   const [hoveredDeleteId, setHoveredDeleteId] = useState<string | null>(null);
@@ -476,32 +566,68 @@ export function LayerPanel({
             const isSelected = image.id === selectedId;
             const isDragging = dragState?.draggingIndex === reversedIndex;
 
+            // Calculate swipe offset for this item
+            const swipeOffset = swipeState?.id === image.id
+              ? Math.min(0, swipeState.currentX - swipeState.startX) // Only allow left swipe
+              : 0;
+
             return (
               <li
                 key={image.id}
-                style={getItemStyle(reversedIndex, isSelected)}
-                onClick={() => !dragState && onSelect(image.id)}
+                style={getItemStyle(reversedIndex, isSelected, swipeOffset)}
+                onClick={() => !dragState && !swipeState && onSelect(image.id)}
+                onPointerDown={e => handleSwipeStart(e, image.id)}
+                onContextMenu={e => e.preventDefault()}
               >
+                {/* Delete indicator shown when swiping */}
+                {isMobile && swipeOffset < -20 && (
+                  <div
+                    style={{
+                      position: "absolute",
+                      right: 0,
+                      top: 0,
+                      bottom: 0,
+                      width: Math.abs(swipeOffset),
+                      backgroundColor: swipeOffset < -100 ? COLORS.RED : "#FFEBEB",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      color: swipeOffset < -100 ? COLORS.WHITE : COLORS.RED,
+                      transition: "background-color 0.2s ease-out",
+                      borderRadius: "0 10px 10px 0"
+                    }}
+                  >
+                    <DeleteIcon />
+                  </div>
+                )}
                 <div
-                  style={{
-                    ...dragHandleStyle,
-                    cursor: isDragging ? "grabbing" : "grab",
-                    backgroundColor: isDragging ? "#e2e8f0" : "transparent"
+                  data-drag-handle
+                  style={getDragHandleStyle(isDragging)}
+                  onPointerDown={e => {
+                    e.stopPropagation();
+                    handlePointerDown(e, reversedIndex);
                   }}
-                  onPointerDown={e => handlePointerDown(e, reversedIndex)}
                   onContextMenu={e => e.preventDefault()}
                 >
-                  <div style={dragLineStyle} />
-                  <div style={dragLineStyle} />
-                  <div style={dragLineStyle} />
+                  <div style={getDragLineStyle()} />
+                  <div style={getDragLineStyle()} />
+                  <div style={getDragLineStyle()} />
                 </div>
-                <img src={image.src} alt={`Layer ${originalIndex + 1}`} style={thumbnailStyle} draggable={false} />
+                <img
+                  src={image.src}
+                  alt={`Layer ${originalIndex + 1}`}
+                  style={thumbnailStyle}
+                  draggable={false}
+                  loading="lazy"
+                  decoding="async"
+                />
                 <span style={labelStyle}>Слой {originalIndex + 1}</span>
                 <button
                   style={hoveredDeleteId === image.id ? deleteButtonHoverStyle : deleteButtonStyle}
                   onClick={e => handleDelete(e, image.id)}
                   onMouseEnter={() => setHoveredDeleteId(image.id)}
                   onMouseLeave={() => setHoveredDeleteId(null)}
+                  onPointerDown={e => e.stopPropagation()}
                   title="Изтрий слой"
                 >
                   <DeleteIcon />

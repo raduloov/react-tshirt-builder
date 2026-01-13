@@ -10,6 +10,8 @@ interface LayerPanelProps {
     onViewChange: (view: TShirtView) => void;
     /** Compact mode for mobile drawer layout */
     compact?: boolean;
+    /** Mobile mode for touch-optimized controls */
+    isMobile?: boolean;
 }
-export declare function LayerPanel({ images, selectedId, onSelect, onDelete, onReorder, onAddImage, currentView, onViewChange, compact }: LayerPanelProps): import("react/jsx-runtime").JSX.Element;
+export declare function LayerPanel({ images, selectedId, onSelect, onDelete, onReorder, onAddImage, currentView, onViewChange, compact, isMobile }: LayerPanelProps): import("react/jsx-runtime").JSX.Element;
 export {};

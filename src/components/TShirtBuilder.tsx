@@ -628,6 +628,7 @@ export function TShirtBuilder({
                   currentView={currentView}
                   onViewChange={setCurrentView}
                   compact={true}
+                  isMobile={true}
                 />
               </div>
             </div>
@@ -645,6 +646,7 @@ export function TShirtBuilder({
               currentView={currentView}
               onViewChange={setCurrentView}
               compact={false}
+              isMobile={false}
             />
           )}
         </div>
@@ -816,6 +818,7 @@ export function TShirtBuilder({
                       transform={scaledTransform}
                       allowRotation={displayConfig.allowRotation || false}
                       onPointerDown={(e, mode, handle) => handlePointerDown(e, imageData.id, mode, handle)}
+                      isMobile={responsiveConfig.enabled && responsiveState.isMobile}
                     />
                   )}
                 </React.Fragment>

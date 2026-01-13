@@ -110,8 +110,10 @@ interface ControlsProps {
     transform: ImageTransform;
     allowRotation: boolean;
     onPointerDown: (event: React__default.PointerEvent, mode: DragMode, handle?: ControlHandle['position']) => void;
+    /** Enable touch-friendly sizing (larger hit areas) */
+    isMobile?: boolean;
 }
-declare function Controls({ transform, allowRotation, onPointerDown }: ControlsProps): react_jsx_runtime.JSX.Element;
+declare function Controls({ transform, allowRotation, onPointerDown, isMobile }: ControlsProps): react_jsx_runtime.JSX.Element;
 
 interface LayerPanelProps {
     images: ImageData[];
@@ -124,8 +126,10 @@ interface LayerPanelProps {
     onViewChange: (view: TShirtView) => void;
     /** Compact mode for mobile drawer layout */
     compact?: boolean;
+    /** Mobile mode for touch-optimized controls */
+    isMobile?: boolean;
 }
-declare function LayerPanel({ images, selectedId, onSelect, onDelete, onReorder, onAddImage, currentView, onViewChange, compact }: LayerPanelProps): react_jsx_runtime.JSX.Element;
+declare function LayerPanel({ images, selectedId, onSelect, onDelete, onReorder, onAddImage, currentView, onViewChange, compact, isMobile }: LayerPanelProps): react_jsx_runtime.JSX.Element;
 
 interface UseImageUploadOptions {
     config: EditorConfig;
