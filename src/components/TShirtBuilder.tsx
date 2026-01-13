@@ -1,7 +1,8 @@
-import React, { useState, useRef, useCallback, useEffect } from "react";
-import type { TShirtBuilderProps, ImageData, EditorConfig, TShirtView, ViewImages } from "../types";
+import React, { useState, useRef, useCallback, useEffect, useMemo } from "react";
+import type { TShirtBuilderProps, ImageData, EditorConfig, TShirtView, ViewImages, ResponsiveConfig, LayoutMode, BoundingBox } from "../types";
 import { useImageUpload } from "../hooks/useImageUpload";
 import { useImageTransform } from "../hooks/useImageTransform";
+import { useResponsive } from "../hooks/useResponsive";
 import { Controls } from "./Controls";
 import { LayerPanel } from "./LayerPanel";
 import { exportToDataUrl, createOffscreenCanvas } from "../utils/canvas";
@@ -26,10 +27,63 @@ const DEFAULT_CONFIG: EditorConfig = {
   maxFileSize: 10 * 1024 * 1024
 };
 
+const DEFAULT_RESPONSIVE_CONFIG: Required<ResponsiveConfig> = {
+  enabled: false,
+  mobileBreakpoint: 639,
+  tabletBreakpoint: 1024,
+  forceLayout: undefined as unknown as LayoutMode,
+  tabletPanelWidth: 180,
+  desktopPanelWidth: 220,
+  mobileCollapsedByDefault: true
+};
+
+// Helper to calculate scaled dimensions for responsive canvas
+function calculateScaledDimensions(
+  originalWidth: number,
+  originalHeight: number,
+  containerWidth: number,
+  maxHeight: number
+): { width: number; height: number; scale: number } {
+  const aspectRatio = originalWidth / originalHeight;
+
+  // First try to fit width
+  let width = Math.min(originalWidth, containerWidth);
+  let height = width / aspectRatio;
+
+  // If height exceeds max, constrain by height instead
+  if (height > maxHeight) {
+    height = maxHeight;
+    width = height * aspectRatio;
+  }
+
+  const scale = width / originalWidth;
+
+  return {
+    width: Math.round(width),
+    height: Math.round(height),
+    scale
+  };
+}
+
+// Scale printable area proportionally
+function scalePrintableArea(
+  printableArea: BoundingBox | undefined,
+  scale: number
+): BoundingBox | undefined {
+  if (!printableArea) return undefined;
+  return {
+    minX: Math.round(printableArea.minX * scale),
+    minY: Math.round(printableArea.minY * scale),
+    maxX: Math.round(printableArea.maxX * scale),
+    maxY: Math.round(printableArea.maxY * scale)
+  };
+}
+
 export function TShirtBuilder({
   frontBgImage,
   backBgImage,
   config: configProp,
+  responsive: responsiveProp,
   onChange,
   onExport,
   className,
@@ -37,6 +91,112 @@ export function TShirtBuilder({
   initialImages
 }: TShirtBuilderProps) {
   const config: EditorConfig = { ...DEFAULT_CONFIG, ...configProp };
+  const responsiveConfig: ResponsiveConfig = { ...DEFAULT_RESPONSIVE_CONFIG, ...responsiveProp };
+
+  // Responsive state detection
+  const responsiveState = useResponsive({
+    mobileBreakpoint: responsiveConfig.mobileBreakpoint,
+    tabletBreakpoint: responsiveConfig.tabletBreakpoint,
+    enabled: responsiveConfig.enabled
+  });
+
+  // Container ref for measuring available space
+  const wrapperRef = useRef<HTMLDivElement>(null);
+  const [containerWidth, setContainerWidth] = useState<number>(0);
+
+  // Mobile drawer state
+  const [isPanelCollapsed, setIsPanelCollapsed] = useState(
+    responsiveConfig.mobileCollapsedByDefault ?? true
+  );
+
+  // Measure container width for responsive scaling
+  useEffect(() => {
+    if (!responsiveConfig.enabled || !wrapperRef.current) return;
+
+    const measureContainer = () => {
+      if (wrapperRef.current) {
+        setContainerWidth(wrapperRef.current.clientWidth);
+      }
+    };
+
+    // Initial measurement
+    measureContainer();
+
+    // Use ResizeObserver for efficient container size tracking
+    const resizeObserver = new ResizeObserver(measureContainer);
+    resizeObserver.observe(wrapperRef.current);
+
+    return () => resizeObserver.disconnect();
+  }, [responsiveConfig.enabled]);
+
+  // Determine layout mode based on responsive state or forced layout
+  const layoutMode: LayoutMode = useMemo(() => {
+    if (responsiveConfig.forceLayout) {
+      return responsiveConfig.forceLayout;
+    }
+    if (!responsiveConfig.enabled) {
+      return 'horizontal';
+    }
+    // Mobile uses vertical layout, tablet and desktop use horizontal
+    return responsiveState.isMobile ? 'vertical' : 'horizontal';
+  }, [responsiveConfig.forceLayout, responsiveConfig.enabled, responsiveState.isMobile]);
+
+  // Calculate panel width based on breakpoint
+  const panelWidth = useMemo(() => {
+    if (!responsiveConfig.enabled) {
+      return responsiveConfig.desktopPanelWidth ?? 220;
+    }
+    if (responsiveState.isMobile) {
+      return '100%'; // Full width for mobile drawer
+    }
+    if (responsiveState.isTablet) {
+      return responsiveConfig.tabletPanelWidth ?? 180;
+    }
+    return responsiveConfig.desktopPanelWidth ?? 220;
+  }, [responsiveConfig.enabled, responsiveConfig.tabletPanelWidth, responsiveConfig.desktopPanelWidth, responsiveState.isMobile, responsiveState.isTablet]);
+
+  // Calculate canvas dimensions based on responsive state
+  const canvasDimensions = useMemo(() => {
+    if (!responsiveConfig.enabled || !containerWidth) {
+      return { width: config.width, height: config.height, scale: 1 };
+    }
+
+    // Calculate available width for canvas
+    let availableWidth = containerWidth;
+    if (layoutMode === 'horizontal') {
+      const gap = 16;
+      const numericPanelWidth = typeof panelWidth === 'number' ? panelWidth : 220;
+      availableWidth = containerWidth - numericPanelWidth - gap;
+    } else {
+      // Vertical layout - full width with some padding
+      availableWidth = containerWidth - 32; // 16px padding on each side
+    }
+
+    // Calculate max height (leave room for buttons and panel in vertical layout)
+    const maxHeight = layoutMode === 'vertical'
+      ? responsiveState.viewportHeight * 0.5 // Half of viewport height in vertical layout
+      : responsiveState.viewportHeight - 200; // Leave room for buttons in horizontal
+
+    return calculateScaledDimensions(
+      config.width,
+      config.height,
+      availableWidth,
+      maxHeight
+    );
+  }, [responsiveConfig.enabled, containerWidth, config.width, config.height, layoutMode, panelWidth, responsiveState.viewportHeight]);
+
+  // Calculate scaled printable area
+  const scaledPrintableArea = useMemo(() => {
+    return scalePrintableArea(config.printableArea, canvasDimensions.scale);
+  }, [config.printableArea, canvasDimensions.scale]);
+
+  // Create a scaled config for rendering (keeps original for export)
+  const displayConfig: EditorConfig = useMemo(() => ({
+    ...config,
+    width: canvasDimensions.width,
+    height: canvasDimensions.height,
+    printableArea: scaledPrintableArea
+  }), [config, canvasDimensions.width, canvasDimensions.height, scaledPrintableArea]);
 
   const [currentView, setCurrentView] = useState<TShirtView>("front");
   const [viewImages, setViewImages] = useState<ViewImages>(initialImages || { front: [], back: [] });
@@ -109,7 +269,8 @@ export function TShirtBuilder({
     images,
     config,
     containerRef,
-    onChange: handleImagesChange
+    onChange: handleImagesChange,
+    displayScale: canvasDimensions.scale
   });
 
   // SVG rotate cursor - same as in Controls.tsx
@@ -167,10 +328,26 @@ export function TShirtBuilder({
     [deselectAll]
   );
 
+  // Scale a transform for display (images are stored in original coordinates)
+  const scaleTransform = useCallback((transform: ImageData['transform']) => {
+    const scale = canvasDimensions.scale;
+    return {
+      position: {
+        x: transform.position.x * scale,
+        y: transform.position.y * scale
+      },
+      size: {
+        width: transform.size.width * scale,
+        height: transform.size.height * scale
+      },
+      rotation: transform.rotation
+    };
+  }, [canvasDimensions.scale]);
+
   const containerStyle: React.CSSProperties = {
     position: "relative",
-    width: config.width,
-    height: config.height,
+    width: displayConfig.width,
+    height: displayConfig.height,
     backgroundColor: COLORS.LIGHT_GRAY,
     backgroundImage: bgImage ? `url(${currentBackgroundUrl})` : undefined,
     backgroundSize: "cover",
@@ -183,6 +360,42 @@ export function TShirtBuilder({
     fontFamily: "Roboto, -apple-system, BlinkMacSystemFont, sans-serif",
     // Prevent browser touch behaviors during interaction
     touchAction: "none"
+  };
+
+  // Wrapper style for responsive layout
+  const wrapperStyle: React.CSSProperties = {
+    width: '100%',
+    fontFamily: "Roboto, -apple-system, BlinkMacSystemFont, sans-serif"
+  };
+
+  // Main layout container style based on layout mode
+  const layoutContainerStyle: React.CSSProperties = {
+    display: "flex",
+    flexDirection: layoutMode === 'vertical' ? 'column' : 'row',
+    gap: layoutMode === 'vertical' ? '12px' : '16px',
+    alignItems: layoutMode === 'vertical' ? 'center' : 'flex-start'
+  };
+
+  // Panel container style for mobile drawer
+  const panelContainerStyle: React.CSSProperties = layoutMode === 'vertical' ? {
+    width: '100%',
+    order: 2, // Panel below canvas on mobile
+    maxHeight: isPanelCollapsed ? '56px' : '400px',
+    overflow: 'hidden',
+    transition: 'max-height 0.3s ease-out',
+    borderRadius: '10px',
+    boxShadow: '0 -2px 10px rgba(0, 0, 0, 0.1)'
+  } : {
+    width: typeof panelWidth === 'number' ? `${panelWidth}px` : panelWidth,
+    flexShrink: 0
+  };
+
+  // Canvas column style
+  const canvasColumnStyle: React.CSSProperties = {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: layoutMode === 'vertical' ? 'center' : 'flex-start',
+    order: layoutMode === 'vertical' ? 1 : 2
   };
 
   const dropZoneStyle: React.CSSProperties = {
@@ -230,8 +443,20 @@ export function TShirtBuilder({
         : {})
   };
 
+  // Toggle panel collapse (mobile only)
+  const togglePanelCollapse = useCallback(() => {
+    setIsPanelCollapsed(prev => !prev);
+  }, []);
+
+  // Collapse panel when selecting/interacting with image on mobile
+  const handleMobileImageInteraction = useCallback(() => {
+    if (layoutMode === 'vertical' && !isPanelCollapsed) {
+      setIsPanelCollapsed(true);
+    }
+  }, [layoutMode, isPanelCollapsed]);
+
   return (
-    <div className={className} style={style}>
+    <div ref={wrapperRef} className={className} style={{ ...wrapperStyle, ...style }}>
       {error && (
         <div
           style={{
@@ -261,21 +486,68 @@ export function TShirtBuilder({
         </div>
       )}
 
-      <div style={{ display: "flex", gap: "16px" }}>
-        {/* Layer Panel */}
-        <LayerPanel
-          images={images}
-          selectedId={selectedId}
-          onSelect={selectImage}
-          onDelete={deleteImage}
-          onReorder={reorderImage}
-          onAddImage={openFilePicker}
-          currentView={currentView}
-          onViewChange={setCurrentView}
-        />
+      <div style={layoutContainerStyle}>
+        {/* Layer Panel - with mobile drawer support */}
+        <div style={panelContainerStyle}>
+          {layoutMode === 'vertical' && (
+            <button
+              onClick={togglePanelCollapse}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '8px',
+                width: '100%',
+                padding: '16px',
+                backgroundColor: COLORS.WHITE,
+                border: 'none',
+                borderBottom: isPanelCollapsed ? 'none' : `1px solid ${COLORS.LIGHT_GRAY}`,
+                cursor: 'pointer',
+                fontSize: '14px',
+                fontWeight: 600,
+                color: COLORS.DARK_GRAY
+              }}
+            >
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 16 16"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+                style={{
+                  transform: isPanelCollapsed ? 'rotate(0deg)' : 'rotate(180deg)',
+                  transition: 'transform 0.3s ease-out'
+                }}
+              >
+                <path
+                  d="M4 6l4 4 4-4"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+              {isPanelCollapsed ? 'Покажи слоевете' : 'Скрий слоевете'}
+            </button>
+          )}
+          <LayerPanel
+            images={images}
+            selectedId={selectedId}
+            onSelect={(id) => {
+              selectImage(id);
+              handleMobileImageInteraction();
+            }}
+            onDelete={deleteImage}
+            onReorder={reorderImage}
+            onAddImage={openFilePicker}
+            currentView={currentView}
+            onViewChange={setCurrentView}
+            compact={layoutMode === 'vertical'}
+          />
+        </div>
 
         {/* Canvas and Export */}
-        <div style={{ display: "flex", flexDirection: "column" }}>
+        <div style={canvasColumnStyle}>
           <div
             ref={containerRef}
             style={containerStyle}
@@ -351,30 +623,30 @@ export function TShirtBuilder({
             )}
 
             {/* Clipped area for images - clips to printable area */}
-            {config.printableArea && (
+            {displayConfig.printableArea && (
               <div
                 style={{
                   position: "absolute",
-                  left: config.printableArea.minX,
-                  top: config.printableArea.minY,
-                  width: config.printableArea.maxX - config.printableArea.minX,
-                  height: config.printableArea.maxY - config.printableArea.minY,
+                  left: displayConfig.printableArea.minX,
+                  top: displayConfig.printableArea.minY,
+                  width: displayConfig.printableArea.maxX - displayConfig.printableArea.minX,
+                  height: displayConfig.printableArea.maxY - displayConfig.printableArea.minY,
                   overflow: "hidden",
                   pointerEvents: "none"
                 }}
               >
                 {/* Render all images inside clip container */}
                 {images.map(imageData => {
-                  const { transform } = imageData;
+                  const scaledTransform = scaleTransform(imageData.transform);
 
                   // Adjust position relative to printable area
                   const imageStyle: React.CSSProperties = {
                     position: "absolute",
-                    left: transform.position.x - config.printableArea!.minX,
-                    top: transform.position.y - config.printableArea!.minY,
-                    width: transform.size.width,
-                    height: transform.size.height,
-                    transform: transform.rotation ? `rotate(${transform.rotation}deg)` : undefined,
+                    left: scaledTransform.position.x - displayConfig.printableArea!.minX,
+                    top: scaledTransform.position.y - displayConfig.printableArea!.minY,
+                    width: scaledTransform.size.width,
+                    height: scaledTransform.size.height,
+                    transform: scaledTransform.rotation ? `rotate(${scaledTransform.rotation}deg)` : undefined,
                     transformOrigin: "center center",
                     userSelect: "none",
                     pointerEvents: "none"
@@ -395,21 +667,21 @@ export function TShirtBuilder({
 
             {/* Render all images (interactive layer - invisible but captures events) */}
             {images.map(imageData => {
-              const { transform } = imageData;
+              const scaledTransform = scaleTransform(imageData.transform);
               const isSelected = imageData.id === selectedId;
 
               const imageStyle: React.CSSProperties = {
                 position: "absolute",
-                left: transform.position.x,
-                top: transform.position.y,
-                width: transform.size.width,
-                height: transform.size.height,
-                transform: transform.rotation ? `rotate(${transform.rotation}deg)` : undefined,
+                left: scaledTransform.position.x,
+                top: scaledTransform.position.y,
+                width: scaledTransform.size.width,
+                height: scaledTransform.size.height,
+                transform: scaledTransform.rotation ? `rotate(${scaledTransform.rotation}deg)` : undefined,
                 transformOrigin: "center center",
                 cursor: isDragging ? "grabbing" : "move",
                 userSelect: "none",
                 pointerEvents: "auto",
-                opacity: config.printableArea ? 0 : 1,
+                opacity: displayConfig.printableArea ? 0 : 1,
                 // Prevent touch behaviors on image
                 touchAction: "none"
               };
@@ -421,18 +693,25 @@ export function TShirtBuilder({
                     alt="Качен дизайн"
                     style={imageStyle}
                     draggable={false}
-                    onPointerDown={e => handlePointerDown(e, imageData.id, "move")}
-                    onTouchStart={e => handleTouchStart(e, imageData.id)}
+                    onPointerDown={e => {
+                      handleMobileImageInteraction();
+                      handlePointerDown(e, imageData.id, "move");
+                    }}
+                    onTouchStart={e => {
+                      handleMobileImageInteraction();
+                      handleTouchStart(e, imageData.id);
+                    }}
                     onClick={e => {
                       e.stopPropagation();
                       selectImage(imageData.id);
+                      handleMobileImageInteraction();
                     }}
                     onContextMenu={e => e.preventDefault()}
                   />
                   {isSelected && (
                     <Controls
-                      transform={transform}
-                      allowRotation={config.allowRotation || false}
+                      transform={scaledTransform}
+                      allowRotation={displayConfig.allowRotation || false}
                       onPointerDown={(e, mode, handle) => handlePointerDown(e, imageData.id, mode, handle)}
                     />
                   )}
@@ -441,14 +720,14 @@ export function TShirtBuilder({
             })}
 
             {/* Printable area indicator */}
-            {config.printableArea && (
+            {displayConfig.printableArea && (
               <div
                 style={{
                   position: "absolute",
-                  left: config.printableArea.minX,
-                  top: config.printableArea.minY,
-                  width: config.printableArea.maxX - config.printableArea.minX,
-                  height: config.printableArea.maxY - config.printableArea.minY,
+                  left: displayConfig.printableArea.minX,
+                  top: displayConfig.printableArea.minY,
+                  width: displayConfig.printableArea.maxX - displayConfig.printableArea.minX,
+                  height: displayConfig.printableArea.maxY - displayConfig.printableArea.minY,
                   border: `1.5px dashed rgba(74, 74, 74, 0.4)`,
                   borderRadius: "4px",
                   boxSizing: "border-box",

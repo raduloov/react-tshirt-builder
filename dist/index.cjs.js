@@ -129,7 +129,7 @@ function getTouchCenter(touch1, touch2) {
         y: (touch1.clientY + touch2.clientY) / 2,
     };
 }
-function useImageTransform({ images, config, containerRef, onChange }) {
+function useImageTransform({ images, config, containerRef, onChange, displayScale = 1 }) {
     const [selectedId, setSelectedId] = React.useState(null);
     const [isDragging, setIsDragging] = React.useState(false);
     const [dragMode, setDragMode] = React.useState(null);
@@ -198,8 +198,9 @@ function useImageTransform({ images, config, containerRef, onChange }) {
         const image = images.find((img) => img.id === dragState.imageId);
         if (!image)
             return;
-        const deltaX = event.clientX - dragState.startPosition.x;
-        const deltaY = event.clientY - dragState.startPosition.y;
+        // Scale delta by inverse of display scale to convert screen pixels to original coordinate space
+        const deltaX = (event.clientX - dragState.startPosition.x) / displayScale;
+        const deltaY = (event.clientY - dragState.startPosition.y) / displayScale;
         let newTransform;
         switch (dragState.mode) {
             case 'move':
@@ -269,12 +270,12 @@ function useImageTransform({ images, config, containerRef, onChange }) {
                 if (!container)
                     return;
                 const rect = container.getBoundingClientRect();
-                // Image center in local (canvas) coordinates
-                const centerX = dragState.startTransform.position.x +
-                    dragState.startTransform.size.width / 2;
-                const centerY = dragState.startTransform.position.y +
-                    dragState.startTransform.size.height / 2;
-                // Convert pointer positions to local coordinates
+                // Image center in local (canvas) coordinates - scaled for display
+                const centerX = (dragState.startTransform.position.x +
+                    dragState.startTransform.size.width / 2) * displayScale;
+                const centerY = (dragState.startTransform.position.y +
+                    dragState.startTransform.size.height / 2) * displayScale;
+                // Convert pointer positions to local coordinates (already in screen space)
                 const startLocalX = dragState.startPosition.x - rect.left;
                 const startLocalY = dragState.startPosition.y - rect.top;
                 const currentLocalX = event.clientX - rect.left;
@@ -293,7 +294,7 @@ function useImageTransform({ images, config, containerRef, onChange }) {
                 return;
         }
         updateImageTransform(dragState.imageId, newTransform);
-    }, [images, config.minImageSize, config.allowRotation, containerRef, updateImageTransform]);
+    }, [images, config.minImageSize, config.allowRotation, containerRef, updateImageTransform, displayScale]);
     const handlePointerUp = React.useCallback((event) => {
         const dragState = dragStateRef.current;
         // Release pointer capture if we have it
@@ -362,15 +363,15 @@ function useImageTransform({ images, config, containerRef, onChange }) {
         if (!container)
             return;
         const rect = container.getBoundingClientRect();
-        // Calculate center movement (for panning while pinching)
-        const centerDeltaX = currentCenter.x - pinchState.startCenter.x;
-        const centerDeltaY = currentCenter.y - pinchState.startCenter.y;
-        // Calculate the image center in container coordinates
+        // Calculate center movement (for panning while pinching), scaled to original coordinates
+        const centerDeltaX = (currentCenter.x - pinchState.startCenter.x) / displayScale;
+        const centerDeltaY = (currentCenter.y - pinchState.startCenter.y) / displayScale;
+        // Calculate the image center in container coordinates (original coordinate space)
         const startImageCenterX = pinchState.startTransform.position.x + pinchState.startTransform.size.width / 2;
         const startImageCenterY = pinchState.startTransform.position.y + pinchState.startTransform.size.height / 2;
-        // Scale around the pinch center point
-        const pinchCenterX = pinchState.startCenter.x - rect.left;
-        const pinchCenterY = pinchState.startCenter.y - rect.top;
+        // Scale around the pinch center point (convert screen to original coordinates)
+        const pinchCenterX = (pinchState.startCenter.x - rect.left) / displayScale;
+        const pinchCenterY = (pinchState.startCenter.y - rect.top) / displayScale;
         // Calculate new position to keep the pinch center stable
         const newCenterX = pinchCenterX + (startImageCenterX - pinchCenterX) * scale + centerDeltaX;
         const newCenterY = pinchCenterY + (startImageCenterY - pinchCenterY) * scale + centerDeltaY;
@@ -382,7 +383,7 @@ function useImageTransform({ images, config, containerRef, onChange }) {
             rotation: pinchState.startTransform.rotation,
         };
         updateImageTransform(pinchState.imageId, newTransform);
-    }, [images, config.minImageSize, containerRef, updateImageTransform]);
+    }, [images, config.minImageSize, containerRef, updateImageTransform, displayScale]);
     const handleTouchEnd = React.useCallback(() => {
         setIsPinching(false);
         pinchStateRef.current = null;
@@ -470,6 +471,99 @@ function useImageTransform({ images, config, containerRef, onChange }) {
         reorderImage,
         updateImageTransform,
     };
+}
+
+const DEFAULT_CONFIG$1 = {
+    mobileBreakpoint: 639,
+    tabletBreakpoint: 1024,
+    enabled: true,
+};
+/**
+ * Hook for detecting viewport breakpoints and responsive state.
+ * Uses matchMedia for efficient breakpoint detection.
+ */
+function useResponsive(config) {
+    const { mobileBreakpoint, tabletBreakpoint, enabled } = {
+        ...DEFAULT_CONFIG$1,
+        ...config,
+    };
+    const getBreakpoint = React.useCallback((width) => {
+        if (width <= mobileBreakpoint)
+            return 'mobile';
+        if (width <= tabletBreakpoint)
+            return 'tablet';
+        return 'desktop';
+    }, [mobileBreakpoint, tabletBreakpoint]);
+    const getInitialState = React.useCallback(() => {
+        // SSR safety - default to desktop if window not available
+        if (typeof window === 'undefined') {
+            return {
+                breakpoint: 'desktop',
+                isMobile: false,
+                isTablet: false,
+                isDesktop: true,
+                viewportWidth: 1200,
+                viewportHeight: 800,
+                isPortrait: false,
+                isLandscape: true,
+            };
+        }
+        const width = window.innerWidth;
+        const height = window.innerHeight;
+        const breakpoint = getBreakpoint(width);
+        return {
+            breakpoint,
+            isMobile: breakpoint === 'mobile',
+            isTablet: breakpoint === 'tablet',
+            isDesktop: breakpoint === 'desktop',
+            viewportWidth: width,
+            viewportHeight: height,
+            isPortrait: height > width,
+            isLandscape: width >= height,
+        };
+    }, [getBreakpoint]);
+    const [state, setState] = React.useState(getInitialState);
+    React.useEffect(() => {
+        if (!enabled || typeof window === 'undefined')
+            return;
+        // Create media queries for breakpoints
+        const mobileQuery = window.matchMedia(`(max-width: ${mobileBreakpoint}px)`);
+        const tabletQuery = window.matchMedia(`(max-width: ${tabletBreakpoint}px)`);
+        const portraitQuery = window.matchMedia('(orientation: portrait)');
+        const updateState = () => {
+            const width = window.innerWidth;
+            const height = window.innerHeight;
+            const breakpoint = getBreakpoint(width);
+            setState({
+                breakpoint,
+                isMobile: breakpoint === 'mobile',
+                isTablet: breakpoint === 'tablet',
+                isDesktop: breakpoint === 'desktop',
+                viewportWidth: width,
+                viewportHeight: height,
+                isPortrait: height > width,
+                isLandscape: width >= height,
+            });
+        };
+        // Use matchMedia change events for breakpoint changes
+        const handleMediaChange = () => updateState();
+        // Also listen to resize for viewport dimensions
+        const handleResize = () => updateState();
+        // Add listeners
+        mobileQuery.addEventListener('change', handleMediaChange);
+        tabletQuery.addEventListener('change', handleMediaChange);
+        portraitQuery.addEventListener('change', handleMediaChange);
+        window.addEventListener('resize', handleResize);
+        // Initial update
+        updateState();
+        return () => {
+            mobileQuery.removeEventListener('change', handleMediaChange);
+            tabletQuery.removeEventListener('change', handleMediaChange);
+            portraitQuery.removeEventListener('change', handleMediaChange);
+            window.removeEventListener('resize', handleResize);
+        };
+    }, [enabled, mobileBreakpoint, tabletBreakpoint, getBreakpoint]);
+    return state;
 }
 
 const HANDLE_SIZE = 10;
@@ -668,7 +762,11 @@ const addButtonStyle = {
     boxShadow: "0 2px 10px rgba(250, 192, 0, 0.3)",
     transition: "filter 0.1s ease-out, transform 0.1s ease-out"
 };
-function LayerPanel({ images, selectedId, onSelect, onDelete, onReorder, onAddImage, currentView, onViewChange }) {
+function LayerPanel({ images, selectedId, onSelect, onDelete, onReorder, onAddImage, currentView, onViewChange, compact = false }) {
+    // Adjust panel style for compact mode
+    const dynamicPanelStyle = compact
+        ? { ...panelStyle, width: '100%', borderRadius: 0 }
+        : panelStyle;
     const [dragState, setDragState] = React.useState(null);
     const listRef = React.useRef(null);
     // Reverse to show top layer first (last in array = top = first in list)
@@ -835,7 +933,7 @@ function LayerPanel({ images, selectedId, onSelect, onDelete, onReorder, onAddIm
     const [hoveredDeleteId, setHoveredDeleteId] = React.useState(null);
     const [addButtonHovered, setAddButtonHovered] = React.useState(false);
     const [addButtonActive, setAddButtonActive] = React.useState(false);
-    return (jsxRuntime.jsxs("div", { style: panelStyle, children: [jsxRuntime.jsx("div", { style: headerStyle, children: jsxRuntime.jsxs("div", { style: viewToggleContainerStyle, children: [jsxRuntime.jsxs("button", { style: getViewButtonStyle(currentView === "front"), onClick: () => onViewChange("front"), children: [jsxRuntime.jsx(FrontIcon, {}), "\u041E\u0442\u043F\u0440\u0435\u0434"] }), jsxRuntime.jsxs("button", { style: getViewButtonStyle(currentView === "back"), onClick: () => onViewChange("back"), children: [jsxRuntime.jsx(BackIcon, {}), "\u041E\u0442\u0437\u0430\u0434"] })] }) }), jsxRuntime.jsx("div", { style: { padding: "12px 12px 4px" }, children: jsxRuntime.jsxs("button", { style: {
+    return (jsxRuntime.jsxs("div", { style: dynamicPanelStyle, children: [jsxRuntime.jsx("div", { style: headerStyle, children: jsxRuntime.jsxs("div", { style: viewToggleContainerStyle, children: [jsxRuntime.jsxs("button", { style: getViewButtonStyle(currentView === "front"), onClick: () => onViewChange("front"), children: [jsxRuntime.jsx(FrontIcon, {}), "\u041E\u0442\u043F\u0440\u0435\u0434"] }), jsxRuntime.jsxs("button", { style: getViewButtonStyle(currentView === "back"), onClick: () => onViewChange("back"), children: [jsxRuntime.jsx(BackIcon, {}), "\u041E\u0442\u0437\u0430\u0434"] })] }) }), jsxRuntime.jsx("div", { style: { padding: "12px 12px 4px" }, children: jsxRuntime.jsxs("button", { style: {
                         ...addButtonStyle,
                         margin: 0,
                         ...(addButtonActive
@@ -948,6 +1046,7 @@ function createOffscreenCanvas(width, height) {
 const COLORS = {
     ACCENT: "#FAC000",
     BLACK: "#000000",
+    WHITE: "#FFFFFF",
     GRAY: "#9B9B9B",
     LIGHT_GRAY: "#F7F7F7",
     DARK_GRAY: "#4A4A4A",
@@ -961,8 +1060,133 @@ const DEFAULT_CONFIG = {
     acceptedFileTypes: ["image/png", "image/jpeg", "image/webp", "image/gif"],
     maxFileSize: 10 * 1024 * 1024
 };
-function TShirtBuilder({ frontBgImage, backBgImage, config: configProp, onChange, onExport, className, style, initialImages }) {
+const DEFAULT_RESPONSIVE_CONFIG = {
+    enabled: false,
+    mobileBreakpoint: 639,
+    tabletBreakpoint: 1024,
+    forceLayout: undefined,
+    tabletPanelWidth: 180,
+    desktopPanelWidth: 220,
+    mobileCollapsedByDefault: true
+};
+// Helper to calculate scaled dimensions for responsive canvas
+function calculateScaledDimensions(originalWidth, originalHeight, containerWidth, maxHeight) {
+    const aspectRatio = originalWidth / originalHeight;
+    // First try to fit width
+    let width = Math.min(originalWidth, containerWidth);
+    let height = width / aspectRatio;
+    // If height exceeds max, constrain by height instead
+    if (height > maxHeight) {
+        height = maxHeight;
+        width = height * aspectRatio;
+    }
+    const scale = width / originalWidth;
+    return {
+        width: Math.round(width),
+        height: Math.round(height),
+        scale
+    };
+}
+// Scale printable area proportionally
+function scalePrintableArea(printableArea, scale) {
+    if (!printableArea)
+        return undefined;
+    return {
+        minX: Math.round(printableArea.minX * scale),
+        minY: Math.round(printableArea.minY * scale),
+        maxX: Math.round(printableArea.maxX * scale),
+        maxY: Math.round(printableArea.maxY * scale)
+    };
+}
+function TShirtBuilder({ frontBgImage, backBgImage, config: configProp, responsive: responsiveProp, onChange, onExport, className, style, initialImages }) {
+    var _a;
     const config = { ...DEFAULT_CONFIG, ...configProp };
+    const responsiveConfig = { ...DEFAULT_RESPONSIVE_CONFIG, ...responsiveProp };
+    // Responsive state detection
+    const responsiveState = useResponsive({
+        mobileBreakpoint: responsiveConfig.mobileBreakpoint,
+        tabletBreakpoint: responsiveConfig.tabletBreakpoint,
+        enabled: responsiveConfig.enabled
+    });
+    // Container ref for measuring available space
+    const wrapperRef = React.useRef(null);
+    const [containerWidth, setContainerWidth] = React.useState(0);
+    // Mobile drawer state
+    const [isPanelCollapsed, setIsPanelCollapsed] = React.useState((_a = responsiveConfig.mobileCollapsedByDefault) !== null && _a !== void 0 ? _a : true);
+    // Measure container width for responsive scaling
+    React.useEffect(() => {
+        if (!responsiveConfig.enabled || !wrapperRef.current)
+            return;
+        const measureContainer = () => {
+            if (wrapperRef.current) {
+                setContainerWidth(wrapperRef.current.clientWidth);
+            }
+        };
+        // Initial measurement
+        measureContainer();
+        // Use ResizeObserver for efficient container size tracking
+        const resizeObserver = new ResizeObserver(measureContainer);
+        resizeObserver.observe(wrapperRef.current);
+        return () => resizeObserver.disconnect();
+    }, [responsiveConfig.enabled]);
+    // Determine layout mode based on responsive state or forced layout
+    const layoutMode = React.useMemo(() => {
+        if (responsiveConfig.forceLayout) {
+            return responsiveConfig.forceLayout;
+        }
+        if (!responsiveConfig.enabled) {
+            return 'horizontal';
+        }
+        // Mobile uses vertical layout, tablet and desktop use horizontal
+        return responsiveState.isMobile ? 'vertical' : 'horizontal';
+    }, [responsiveConfig.forceLayout, responsiveConfig.enabled, responsiveState.isMobile]);
+    // Calculate panel width based on breakpoint
+    const panelWidth = React.useMemo(() => {
+        var _a, _b, _c;
+        if (!responsiveConfig.enabled) {
+            return (_a = responsiveConfig.desktopPanelWidth) !== null && _a !== void 0 ? _a : 220;
+        }
+        if (responsiveState.isMobile) {
+            return '100%'; // Full width for mobile drawer
+        }
+        if (responsiveState.isTablet) {
+            return (_b = responsiveConfig.tabletPanelWidth) !== null && _b !== void 0 ? _b : 180;
+        }
+        return (_c = responsiveConfig.desktopPanelWidth) !== null && _c !== void 0 ? _c : 220;
+    }, [responsiveConfig.enabled, responsiveConfig.tabletPanelWidth, responsiveConfig.desktopPanelWidth, responsiveState.isMobile, responsiveState.isTablet]);
+    // Calculate canvas dimensions based on responsive state
+    const canvasDimensions = React.useMemo(() => {
+        if (!responsiveConfig.enabled || !containerWidth) {
+            return { width: config.width, height: config.height, scale: 1 };
+        }
+        // Calculate available width for canvas
+        let availableWidth = containerWidth;
+        if (layoutMode === 'horizontal') {
+            const gap = 16;
+            const numericPanelWidth = typeof panelWidth === 'number' ? panelWidth : 220;
+            availableWidth = containerWidth - numericPanelWidth - gap;
+        }
+        else {
+            // Vertical layout - full width with some padding
+            availableWidth = containerWidth - 32; // 16px padding on each side
+        }
+        // Calculate max height (leave room for buttons and panel in vertical layout)
+        const maxHeight = layoutMode === 'vertical'
+            ? responsiveState.viewportHeight * 0.5 // Half of viewport height in vertical layout
+            : responsiveState.viewportHeight - 200; // Leave room for buttons in horizontal
+        return calculateScaledDimensions(config.width, config.height, availableWidth, maxHeight);
+    }, [responsiveConfig.enabled, containerWidth, config.width, config.height, layoutMode, panelWidth, responsiveState.viewportHeight]);
+    // Calculate scaled printable area
+    const scaledPrintableArea = React.useMemo(() => {
+        return scalePrintableArea(config.printableArea, canvasDimensions.scale);
+    }, [config.printableArea, canvasDimensions.scale]);
+    // Create a scaled config for rendering (keeps original for export)
+    const displayConfig = React.useMemo(() => ({
+        ...config,
+        width: canvasDimensions.width,
+        height: canvasDimensions.height,
+        printableArea: scaledPrintableArea
+    }), [config, canvasDimensions.width, canvasDimensions.height, scaledPrintableArea]);
     const [currentView, setCurrentView] = React.useState("front");
     const [viewImages, setViewImages] = React.useState(initialImages || { front: [], back: [] });
     const [bgImage, setBgImage] = React.useState(null);
@@ -1009,7 +1233,8 @@ function TShirtBuilder({ frontBgImage, backBgImage, config: configProp, onChange
         images,
         config,
         containerRef,
-        onChange: handleImagesChange
+        onChange: handleImagesChange,
+        displayScale: canvasDimensions.scale
     });
     // SVG rotate cursor - same as in Controls.tsx
     const ROTATE_CURSOR = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23333' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8'/%3E%3Cpath d='M21 3v5h-5'/%3E%3C/svg%3E") 12 12, crosshair`;
@@ -1055,10 +1280,25 @@ function TShirtBuilder({ frontBgImage, backBgImage, config: configProp, onChange
             deselectAll();
         }
     }, [deselectAll]);
+    // Scale a transform for display (images are stored in original coordinates)
+    const scaleTransform = React.useCallback((transform) => {
+        const scale = canvasDimensions.scale;
+        return {
+            position: {
+                x: transform.position.x * scale,
+                y: transform.position.y * scale
+            },
+            size: {
+                width: transform.size.width * scale,
+                height: transform.size.height * scale
+            },
+            rotation: transform.rotation
+        };
+    }, [canvasDimensions.scale]);
     const containerStyle = {
         position: "relative",
-        width: config.width,
-        height: config.height,
+        width: displayConfig.width,
+        height: displayConfig.height,
         backgroundColor: COLORS.LIGHT_GRAY,
         backgroundImage: bgImage ? `url(${currentBackgroundUrl})` : undefined,
         backgroundSize: "cover",
@@ -1071,6 +1311,38 @@ function TShirtBuilder({ frontBgImage, backBgImage, config: configProp, onChange
         fontFamily: "Roboto, -apple-system, BlinkMacSystemFont, sans-serif",
         // Prevent browser touch behaviors during interaction
         touchAction: "none"
+    };
+    // Wrapper style for responsive layout
+    const wrapperStyle = {
+        width: '100%',
+        fontFamily: "Roboto, -apple-system, BlinkMacSystemFont, sans-serif"
+    };
+    // Main layout container style based on layout mode
+    const layoutContainerStyle = {
+        display: "flex",
+        flexDirection: layoutMode === 'vertical' ? 'column' : 'row',
+        gap: layoutMode === 'vertical' ? '12px' : '16px',
+        alignItems: layoutMode === 'vertical' ? 'center' : 'flex-start'
+    };
+    // Panel container style for mobile drawer
+    const panelContainerStyle = layoutMode === 'vertical' ? {
+        width: '100%',
+        order: 2, // Panel below canvas on mobile
+        maxHeight: isPanelCollapsed ? '56px' : '400px',
+        overflow: 'hidden',
+        transition: 'max-height 0.3s ease-out',
+        borderRadius: '10px',
+        boxShadow: '0 -2px 10px rgba(0, 0, 0, 0.1)'
+    } : {
+        width: typeof panelWidth === 'number' ? `${panelWidth}px` : panelWidth,
+        flexShrink: 0
+    };
+    // Canvas column style
+    const canvasColumnStyle = {
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: layoutMode === 'vertical' ? 'center' : 'flex-start',
+        order: layoutMode === 'vertical' ? 1 : 2
     };
     const dropZoneStyle = {
         position: "absolute",
@@ -1114,7 +1386,17 @@ function TShirtBuilder({ frontBgImage, backBgImage, config: configProp, onChange
                 }
                 : {})
     };
-    return (jsxRuntime.jsxs("div", { className: className, style: style, children: [error && (jsxRuntime.jsxs("div", { style: {
+    // Toggle panel collapse (mobile only)
+    const togglePanelCollapse = React.useCallback(() => {
+        setIsPanelCollapsed(prev => !prev);
+    }, []);
+    // Collapse panel when selecting/interacting with image on mobile
+    const handleMobileImageInteraction = React.useCallback(() => {
+        if (layoutMode === 'vertical' && !isPanelCollapsed) {
+            setIsPanelCollapsed(true);
+        }
+    }, [layoutMode, isPanelCollapsed]);
+    return (jsxRuntime.jsxs("div", { ref: wrapperRef, className: className, style: { ...wrapperStyle, ...style }, children: [error && (jsxRuntime.jsxs("div", { style: {
                     display: "flex",
                     alignItems: "center",
                     gap: "8px",
@@ -1126,7 +1408,27 @@ function TShirtBuilder({ frontBgImage, backBgImage, config: configProp, onChange
                     fontSize: "13px",
                     fontWeight: 500,
                     boxShadow: "0 2px 10px rgba(255, 0, 0, 0.1)"
-                }, children: [jsxRuntime.jsx("svg", { width: "16", height: "16", viewBox: "0 0 16 16", fill: "none", xmlns: "http://www.w3.org/2000/svg", children: jsxRuntime.jsx("path", { d: "M8 5.333V8M8 10.667h.007M14.667 8A6.667 6.667 0 111.333 8a6.667 6.667 0 0113.334 0z", stroke: "currentColor", strokeWidth: "1.5", strokeLinecap: "round", strokeLinejoin: "round" }) }), error] })), jsxRuntime.jsxs("div", { style: { display: "flex", gap: "16px" }, children: [jsxRuntime.jsx(LayerPanel, { images: images, selectedId: selectedId, onSelect: selectImage, onDelete: deleteImage, onReorder: reorderImage, onAddImage: openFilePicker, currentView: currentView, onViewChange: setCurrentView }), jsxRuntime.jsxs("div", { style: { display: "flex", flexDirection: "column" }, children: [jsxRuntime.jsxs("div", { ref: containerRef, style: containerStyle, onDrop: handleDrop, onDragOver: handleDragOver, onClick: handleContainerClick, children: [images.length === 0 && (jsxRuntime.jsx("div", { style: dropZoneStyle, children: jsxRuntime.jsxs("div", { style: {
+                }, children: [jsxRuntime.jsx("svg", { width: "16", height: "16", viewBox: "0 0 16 16", fill: "none", xmlns: "http://www.w3.org/2000/svg", children: jsxRuntime.jsx("path", { d: "M8 5.333V8M8 10.667h.007M14.667 8A6.667 6.667 0 111.333 8a6.667 6.667 0 0113.334 0z", stroke: "currentColor", strokeWidth: "1.5", strokeLinecap: "round", strokeLinejoin: "round" }) }), error] })), jsxRuntime.jsxs("div", { style: layoutContainerStyle, children: [jsxRuntime.jsxs("div", { style: panelContainerStyle, children: [layoutMode === 'vertical' && (jsxRuntime.jsxs("button", { onClick: togglePanelCollapse, style: {
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    gap: '8px',
+                                    width: '100%',
+                                    padding: '16px',
+                                    backgroundColor: COLORS.WHITE,
+                                    border: 'none',
+                                    borderBottom: isPanelCollapsed ? 'none' : `1px solid ${COLORS.LIGHT_GRAY}`,
+                                    cursor: 'pointer',
+                                    fontSize: '14px',
+                                    fontWeight: 600,
+                                    color: COLORS.DARK_GRAY
+                                }, children: [jsxRuntime.jsx("svg", { width: "16", height: "16", viewBox: "0 0 16 16", fill: "none", xmlns: "http://www.w3.org/2000/svg", style: {
+                                            transform: isPanelCollapsed ? 'rotate(0deg)' : 'rotate(180deg)',
+                                            transition: 'transform 0.3s ease-out'
+                                        }, children: jsxRuntime.jsx("path", { d: "M4 6l4 4 4-4", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round" }) }), isPanelCollapsed ? 'Покажи слоевете' : 'Скрий слоевете'] })), jsxRuntime.jsx(LayerPanel, { images: images, selectedId: selectedId, onSelect: (id) => {
+                                    selectImage(id);
+                                    handleMobileImageInteraction();
+                                }, onDelete: deleteImage, onReorder: reorderImage, onAddImage: openFilePicker, currentView: currentView, onViewChange: setCurrentView, compact: layoutMode === 'vertical' })] }), jsxRuntime.jsxs("div", { style: canvasColumnStyle, children: [jsxRuntime.jsxs("div", { ref: containerRef, style: containerStyle, onDrop: handleDrop, onDragOver: handleDragOver, onClick: handleContainerClick, children: [images.length === 0 && (jsxRuntime.jsx("div", { style: dropZoneStyle, children: jsxRuntime.jsxs("div", { style: {
                                                 display: "flex",
                                                 flexDirection: "column",
                                                 alignItems: "center",
@@ -1157,57 +1459,64 @@ function TShirtBuilder({ frontBgImage, backBgImage, config: configProp, onChange
                                                         fontSize: "14px",
                                                         boxShadow: "0 2px 10px rgba(250, 192, 0, 0.3)",
                                                         transition: "all 0.3s ease-out"
-                                                    }, children: "\u0418\u0437\u0431\u0435\u0440\u0438 \u0444\u0430\u0439\u043B" }), jsxRuntime.jsx("span", { style: { color: COLORS.GRAY, fontSize: "11px", marginTop: "12px" }, children: "PNG, JPG, WebP, GIF \u0434\u043E 10MB" })] }) })), config.printableArea && (jsxRuntime.jsx("div", { style: {
+                                                    }, children: "\u0418\u0437\u0431\u0435\u0440\u0438 \u0444\u0430\u0439\u043B" }), jsxRuntime.jsx("span", { style: { color: COLORS.GRAY, fontSize: "11px", marginTop: "12px" }, children: "PNG, JPG, WebP, GIF \u0434\u043E 10MB" })] }) })), displayConfig.printableArea && (jsxRuntime.jsx("div", { style: {
                                             position: "absolute",
-                                            left: config.printableArea.minX,
-                                            top: config.printableArea.minY,
-                                            width: config.printableArea.maxX - config.printableArea.minX,
-                                            height: config.printableArea.maxY - config.printableArea.minY,
+                                            left: displayConfig.printableArea.minX,
+                                            top: displayConfig.printableArea.minY,
+                                            width: displayConfig.printableArea.maxX - displayConfig.printableArea.minX,
+                                            height: displayConfig.printableArea.maxY - displayConfig.printableArea.minY,
                                             overflow: "hidden",
                                             pointerEvents: "none"
                                         }, children: images.map(imageData => {
-                                            const { transform } = imageData;
+                                            const scaledTransform = scaleTransform(imageData.transform);
                                             // Adjust position relative to printable area
                                             const imageStyle = {
                                                 position: "absolute",
-                                                left: transform.position.x - config.printableArea.minX,
-                                                top: transform.position.y - config.printableArea.minY,
-                                                width: transform.size.width,
-                                                height: transform.size.height,
-                                                transform: transform.rotation ? `rotate(${transform.rotation}deg)` : undefined,
+                                                left: scaledTransform.position.x - displayConfig.printableArea.minX,
+                                                top: scaledTransform.position.y - displayConfig.printableArea.minY,
+                                                width: scaledTransform.size.width,
+                                                height: scaledTransform.size.height,
+                                                transform: scaledTransform.rotation ? `rotate(${scaledTransform.rotation}deg)` : undefined,
                                                 transformOrigin: "center center",
                                                 userSelect: "none",
                                                 pointerEvents: "none"
                                             };
                                             return (jsxRuntime.jsx("img", { src: imageData.src, alt: "\u041A\u0430\u0447\u0435\u043D \u0434\u0438\u0437\u0430\u0439\u043D", style: imageStyle, draggable: false }, imageData.id));
                                         }) })), images.map(imageData => {
-                                        const { transform } = imageData;
+                                        const scaledTransform = scaleTransform(imageData.transform);
                                         const isSelected = imageData.id === selectedId;
                                         const imageStyle = {
                                             position: "absolute",
-                                            left: transform.position.x,
-                                            top: transform.position.y,
-                                            width: transform.size.width,
-                                            height: transform.size.height,
-                                            transform: transform.rotation ? `rotate(${transform.rotation}deg)` : undefined,
+                                            left: scaledTransform.position.x,
+                                            top: scaledTransform.position.y,
+                                            width: scaledTransform.size.width,
+                                            height: scaledTransform.size.height,
+                                            transform: scaledTransform.rotation ? `rotate(${scaledTransform.rotation}deg)` : undefined,
                                             transformOrigin: "center center",
                                             cursor: isDragging ? "grabbing" : "move",
                                             userSelect: "none",
                                             pointerEvents: "auto",
-                                            opacity: config.printableArea ? 0 : 1,
+                                            opacity: displayConfig.printableArea ? 0 : 1,
                                             // Prevent touch behaviors on image
                                             touchAction: "none"
                                         };
-                                        return (jsxRuntime.jsxs(React.Fragment, { children: [jsxRuntime.jsx("img", { src: imageData.src, alt: "\u041A\u0430\u0447\u0435\u043D \u0434\u0438\u0437\u0430\u0439\u043D", style: imageStyle, draggable: false, onPointerDown: e => handlePointerDown(e, imageData.id, "move"), onTouchStart: e => handleTouchStart(e, imageData.id), onClick: e => {
+                                        return (jsxRuntime.jsxs(React.Fragment, { children: [jsxRuntime.jsx("img", { src: imageData.src, alt: "\u041A\u0430\u0447\u0435\u043D \u0434\u0438\u0437\u0430\u0439\u043D", style: imageStyle, draggable: false, onPointerDown: e => {
+                                                        handleMobileImageInteraction();
+                                                        handlePointerDown(e, imageData.id, "move");
+                                                    }, onTouchStart: e => {
+                                                        handleMobileImageInteraction();
+                                                        handleTouchStart(e, imageData.id);
+                                                    }, onClick: e => {
                                                         e.stopPropagation();
                                                         selectImage(imageData.id);
-                                                    }, onContextMenu: e => e.preventDefault() }), isSelected && (jsxRuntime.jsx(Controls, { transform: transform, allowRotation: config.allowRotation || false, onPointerDown: (e, mode, handle) => handlePointerDown(e, imageData.id, mode, handle) }))] }, imageData.id));
-                                    }), config.printableArea && (jsxRuntime.jsx("div", { style: {
+                                                        handleMobileImageInteraction();
+                                                    }, onContextMenu: e => e.preventDefault() }), isSelected && (jsxRuntime.jsx(Controls, { transform: scaledTransform, allowRotation: displayConfig.allowRotation || false, onPointerDown: (e, mode, handle) => handlePointerDown(e, imageData.id, mode, handle) }))] }, imageData.id));
+                                    }), displayConfig.printableArea && (jsxRuntime.jsx("div", { style: {
                                             position: "absolute",
-                                            left: config.printableArea.minX,
-                                            top: config.printableArea.minY,
-                                            width: config.printableArea.maxX - config.printableArea.minX,
-                                            height: config.printableArea.maxY - config.printableArea.minY,
+                                            left: displayConfig.printableArea.minX,
+                                            top: displayConfig.printableArea.minY,
+                                            width: displayConfig.printableArea.maxX - displayConfig.printableArea.minX,
+                                            height: displayConfig.printableArea.maxY - displayConfig.printableArea.minY,
                                             border: `1.5px dashed rgba(74, 74, 74, 0.4)`,
                                             borderRadius: "4px",
                                             boxSizing: "border-box",

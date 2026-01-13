@@ -8,6 +8,8 @@ interface LayerPanelProps {
     onAddImage: () => void;
     currentView: TShirtView;
     onViewChange: (view: TShirtView) => void;
+    /** Compact mode for mobile drawer layout */
+    compact?: boolean;
 }
-export declare function LayerPanel({ images, selectedId, onSelect, onDelete, onReorder, onAddImage, currentView, onViewChange }: LayerPanelProps): import("react/jsx-runtime").JSX.Element;
+export declare function LayerPanel({ images, selectedId, onSelect, onDelete, onReorder, onAddImage, currentView, onViewChange, compact }: LayerPanelProps): import("react/jsx-runtime").JSX.Element;
 export {};

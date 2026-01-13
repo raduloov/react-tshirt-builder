@@ -51,6 +51,23 @@ interface EditorConfig {
     /** Maximum file size in bytes */
     maxFileSize?: number;
 }
+type LayoutMode = 'horizontal' | 'vertical';
+interface ResponsiveConfig {
+    /** Enable responsive behavior that adapts to viewport size */
+    enabled?: boolean;
+    /** Mobile breakpoint max width in pixels (default: 639) */
+    mobileBreakpoint?: number;
+    /** Tablet breakpoint max width in pixels (default: 1024) */
+    tabletBreakpoint?: number;
+    /** Force a specific layout mode regardless of viewport */
+    forceLayout?: LayoutMode;
+    /** Panel width for tablet layout in pixels (default: 180) */
+    tabletPanelWidth?: number;
+    /** Panel width for desktop layout in pixels (default: 220) */
+    desktopPanelWidth?: number;
+    /** Panel collapsed by default on mobile (default: true) */
+    mobileCollapsedByDefault?: boolean;
+}
 interface TShirtBuilderProps {
     /** Background image for front view (e.g., t-shirt template) */
     frontBgImage?: string;
@@ -58,6 +75,8 @@ interface TShirtBuilderProps {
     backBgImage?: string;
     /** Editor configuration */
     config?: Partial<EditorConfig>;
+    /** Responsive configuration for mobile/tablet adaptation */
+    responsive?: ResponsiveConfig;
     /** Callback when images change (includes both views) */
     onChange?: (images: ViewImages, currentView: TShirtView) => void;
     /** Callback when export is requested (returns both front and back) */
@@ -85,7 +104,7 @@ interface DragState {
     handle?: ControlHandle['position'];
 }
 
-declare function TShirtBuilder({ frontBgImage, backBgImage, config: configProp, onChange, onExport, className, style, initialImages }: TShirtBuilderProps): react_jsx_runtime.JSX.Element;
+declare function TShirtBuilder({ frontBgImage, backBgImage, config: configProp, responsive: responsiveProp, onChange, onExport, className, style, initialImages }: TShirtBuilderProps): react_jsx_runtime.JSX.Element;
 
 interface ControlsProps {
     transform: ImageTransform;
@@ -103,8 +122,10 @@ interface LayerPanelProps {
     onAddImage: () => void;
     currentView: TShirtView;
     onViewChange: (view: TShirtView) => void;
+    /** Compact mode for mobile drawer layout */
+    compact?: boolean;
 }
-declare function LayerPanel({ images, selectedId, onSelect, onDelete, onReorder, onAddImage, currentView, onViewChange }: LayerPanelProps): react_jsx_runtime.JSX.Element;
+declare function LayerPanel({ images, selectedId, onSelect, onDelete, onReorder, onAddImage, currentView, onViewChange, compact }: LayerPanelProps): react_jsx_runtime.JSX.Element;
 
 interface UseImageUploadOptions {
     config: EditorConfig;
@@ -125,8 +146,10 @@ interface UseImageTransformOptions {
     config: EditorConfig;
     containerRef: React.RefObject<HTMLElement>;
     onChange?: (images: ImageData[]) => void;
+    /** Display scale factor for responsive mode (default: 1) */
+    displayScale?: number;
 }
-declare function useImageTransform({ images, config, containerRef, onChange }: UseImageTransformOptions): {
+declare function useImageTransform({ images, config, containerRef, onChange, displayScale }: UseImageTransformOptions): {
     selectedId: string | null;
     isDragging: boolean;
     isPinching: boolean;

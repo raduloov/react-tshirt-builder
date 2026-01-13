@@ -4,8 +4,10 @@ interface UseImageTransformOptions {
     config: EditorConfig;
     containerRef: React.RefObject<HTMLElement>;
     onChange?: (images: ImageData[]) => void;
+    /** Display scale factor for responsive mode (default: 1) */
+    displayScale?: number;
 }
-export declare function useImageTransform({ images, config, containerRef, onChange }: UseImageTransformOptions): {
+export declare function useImageTransform({ images, config, containerRef, onChange, displayScale }: UseImageTransformOptions): {
     selectedId: string | null;
     isDragging: boolean;
     isPinching: boolean;

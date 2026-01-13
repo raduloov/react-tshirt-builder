@@ -10,6 +10,8 @@ interface LayerPanelProps {
   onAddImage: () => void;
   currentView: TShirtView;
   onViewChange: (view: TShirtView) => void;
+  /** Compact mode for mobile drawer layout */
+  compact?: boolean;
 }
 
 const ITEM_HEIGHT = 56; // Height of each layer item in pixels
@@ -207,8 +209,13 @@ export function LayerPanel({
   onReorder,
   onAddImage,
   currentView,
-  onViewChange
+  onViewChange,
+  compact = false
 }: LayerPanelProps) {
+  // Adjust panel style for compact mode
+  const dynamicPanelStyle: React.CSSProperties = compact
+    ? { ...panelStyle, width: '100%', borderRadius: 0 }
+    : panelStyle;
   const [dragState, setDragState] = useState<{
     draggingIndex: number;
     startY: number;
@@ -410,7 +417,7 @@ export function LayerPanel({
   const [addButtonActive, setAddButtonActive] = useState(false);
 
   return (
-    <div style={panelStyle}>
+    <div style={dynamicPanelStyle}>
       <div style={headerStyle}>
         <div style={viewToggleContainerStyle}>
           <button style={getViewButtonStyle(currentView === "front")} onClick={() => onViewChange("front")}>

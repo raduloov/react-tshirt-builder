@@ -47,6 +47,23 @@ export interface EditorConfig {
     /** Maximum file size in bytes */
     maxFileSize?: number;
 }
+export type LayoutMode = 'horizontal' | 'vertical';
+export interface ResponsiveConfig {
+    /** Enable responsive behavior that adapts to viewport size */
+    enabled?: boolean;
+    /** Mobile breakpoint max width in pixels (default: 639) */
+    mobileBreakpoint?: number;
+    /** Tablet breakpoint max width in pixels (default: 1024) */
+    tabletBreakpoint?: number;
+    /** Force a specific layout mode regardless of viewport */
+    forceLayout?: LayoutMode;
+    /** Panel width for tablet layout in pixels (default: 180) */
+    tabletPanelWidth?: number;
+    /** Panel width for desktop layout in pixels (default: 220) */
+    desktopPanelWidth?: number;
+    /** Panel collapsed by default on mobile (default: true) */
+    mobileCollapsedByDefault?: boolean;
+}
 export interface TShirtBuilderProps {
     /** Background image for front view (e.g., t-shirt template) */
     frontBgImage?: string;
@@ -54,6 +71,8 @@ export interface TShirtBuilderProps {
     backBgImage?: string;
     /** Editor configuration */
     config?: Partial<EditorConfig>;
+    /** Responsive configuration for mobile/tablet adaptation */
+    responsive?: ResponsiveConfig;
     /** Callback when images change (includes both views) */
     onChange?: (images: ViewImages, currentView: TShirtView) => void;
     /** Callback when export is requested (returns both front and back) */
