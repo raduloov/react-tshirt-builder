@@ -55,7 +55,8 @@ const DraggableImage = memo(function DraggableImage({
     cursor: isDragging ? "grabbing" : "move",
     userSelect: "none",
     pointerEvents: "auto",
-    opacity: hasPrintableArea ? 0 : 1
+    opacity: hasPrintableArea ? 0 : 1,
+    willChange: isDragging ? "transform, left, top" : "auto"
   }), [transform.position.x, transform.position.y, transform.size.width, transform.size.height, transform.rotation, isDragging, hasPrintableArea]);
 
   return (
@@ -92,7 +93,8 @@ const ClippedImage = memo(function ClippedImage({
     transform: transform.rotation ? `rotate(${transform.rotation}deg)` : undefined,
     transformOrigin: "center center",
     userSelect: "none",
-    pointerEvents: "none"
+    pointerEvents: "none",
+    willChange: "transform, left, top"
   }), [transform.position.x, transform.position.y, transform.size.width, transform.size.height, transform.rotation, printableArea]);
 
   return (
@@ -258,7 +260,8 @@ export function TShirtBuilder({
     userSelect: "none",
     borderRadius: "10px",
     boxShadow: "0 2px 10px rgba(0, 0, 0, 0.1)",
-    fontFamily: "Roboto, -apple-system, BlinkMacSystemFont, sans-serif"
+    fontFamily: "Roboto, -apple-system, BlinkMacSystemFont, sans-serif",
+    contain: "layout style paint"
   }), [config.width, config.height, bgImage, currentBackgroundUrl, isDragging, dragMode]);
 
   const dropZoneStyle: React.CSSProperties = useMemo(() => ({

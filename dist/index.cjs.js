@@ -121,6 +121,8 @@ function useImageTransform({ images, config, containerRef, onChange }) {
     const [isDragging, setIsDragging] = React.useState(false);
     const [dragMode, setDragMode] = React.useState(null);
     const dragStateRef = React.useRef(null);
+    const rafRef = React.useRef(null);
+    const pendingMouseEvent = React.useRef(null);
     // Store latest values in refs to avoid recreating callbacks
     const imagesRef = React.useRef(images);
     const onChangeRef = React.useRef(onChange);
@@ -183,7 +185,7 @@ function useImageTransform({ images, config, containerRef, onChange }) {
             handle,
         };
     }, []);
-    const handleMouseMove = React.useCallback((event) => {
+    const processMouseMove = React.useCallback((event) => {
         const dragState = dragStateRef.current;
         if (!dragState)
             return;
@@ -286,7 +288,25 @@ function useImageTransform({ images, config, containerRef, onChange }) {
         }
         updateImageTransform(dragState.imageId, newTransform);
     }, [containerRef, updateImageTransform]);
+    // Throttle mousemove with requestAnimationFrame for smooth performance
+    const handleMouseMove = React.useCallback((event) => {
+        pendingMouseEvent.current = event;
+        if (rafRef.current === null) {
+            rafRef.current = requestAnimationFrame(() => {
+                if (pendingMouseEvent.current) {
+                    processMouseMove(pendingMouseEvent.current);
+                }
+                rafRef.current = null;
+            });
+        }
+    }, [processMouseMove]);
     const handleMouseUp = React.useCallback(() => {
+        // Cancel any pending RAF
+        if (rafRef.current !== null) {
+            cancelAnimationFrame(rafRef.current);
+            rafRef.current = null;
+        }
+        pendingMouseEvent.current = null;
         setIsDragging(false);
         setDragMode(null);
         dragStateRef.current = null;
@@ -526,8 +546,16 @@ const dragLineStyle = {
     backgroundColor: COLORS$1.GRAY,
     borderRadius: "1px"
 };
-// Plus icon for add button
-const PlusIcon = () => (jsxRuntime.jsx("svg", { width: "16", height: "16", viewBox: "0 0 16 16", fill: "none", xmlns: "http://www.w3.org/2000/svg", children: jsxRuntime.jsx("path", { d: "M8 3v10M3 8h10", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round" }) }));
+// Plus icon for add button - memoized to prevent recreation
+const PlusIcon = React.memo(() => (jsxRuntime.jsx("svg", { width: "16", height: "16", viewBox: "0 0 16 16", fill: "none", xmlns: "http://www.w3.org/2000/svg", children: jsxRuntime.jsx("path", { d: "M8 3v10M3 8h10", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round" }) })));
+// Front icon - memoized
+const FrontIcon = React.memo(() => (jsxRuntime.jsxs("svg", { width: "16", height: "16", viewBox: "0 0 24 24", fill: "none", xmlns: "http://www.w3.org/2000/svg", children: [jsxRuntime.jsx("path", { d: "M20 21V19a4 4 0 00-4-4H8a4 4 0 00-4 4v2", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round" }), jsxRuntime.jsx("circle", { cx: "12", cy: "7", r: "4", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round" })] })));
+// Back icon - memoized
+const BackIcon = React.memo(() => (jsxRuntime.jsxs("svg", { width: "16", height: "16", viewBox: "0 0 24 24", fill: "none", xmlns: "http://www.w3.org/2000/svg", children: [jsxRuntime.jsx("path", { d: "M20 21V19a4 4 0 00-4-4H8a4 4 0 00-4 4v2", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round" }), jsxRuntime.jsx("circle", { cx: "12", cy: "7", r: "4", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round" }), jsxRuntime.jsx("path", { d: "M3 3l18 18", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round" })] })));
+// Delete icon - memoized
+const DeleteIcon = React.memo(() => (jsxRuntime.jsx("svg", { width: "14", height: "14", viewBox: "0 0 16 16", fill: "none", xmlns: "http://www.w3.org/2000/svg", children: jsxRuntime.jsx("path", { d: "M2 4h12M5.333 4V2.667a1.333 1.333 0 011.334-1.334h2.666a1.333 1.333 0 011.334 1.334V4m2 0v9.333a1.333 1.333 0 01-1.334 1.334H4.667a1.333 1.333 0 01-1.334-1.334V4h9.334z", stroke: "currentColor", strokeWidth: "1.5", strokeLinecap: "round", strokeLinejoin: "round" }) })));
+// Empty layers icon - memoized
+const EmptyLayersIcon = React.memo(() => (jsxRuntime.jsxs("svg", { width: "24", height: "24", viewBox: "0 0 16 16", fill: "none", xmlns: "http://www.w3.org/2000/svg", children: [jsxRuntime.jsx("path", { d: "M8 1L1 4.5L8 8L15 4.5L8 1Z", stroke: "currentColor", strokeWidth: "1.5", strokeLinecap: "round", strokeLinejoin: "round" }), jsxRuntime.jsx("path", { d: "M1 11.5L8 15L15 11.5", stroke: "currentColor", strokeWidth: "1.5", strokeLinecap: "round", strokeLinejoin: "round" }), jsxRuntime.jsx("path", { d: "M1 8L8 11.5L15 8", stroke: "currentColor", strokeWidth: "1.5", strokeLinecap: "round", strokeLinejoin: "round" })] })));
 const addButtonStyle = {
     display: "flex",
     alignItems: "center",
@@ -549,8 +577,9 @@ const addButtonStyle = {
 const LayerPanel = React.memo(function LayerPanel({ images, selectedId, onSelect, onDelete, onReorder, onAddImage, currentView, onViewChange }) {
     const [dragState, setDragState] = React.useState(null);
     const listRef = React.useRef(null);
-    // Reverse to show top layer first (last in array = top = first in list)
-    const reversedImages = [...images].reverse();
+    const rafRef = React.useRef(null);
+    // Memoize reversed array to prevent recreation on every render
+    const reversedImages = React.useMemo(() => [...images].reverse(), [images]);
     const handleMouseDown = React.useCallback((e, reversedIndex) => {
         e.preventDefault();
         e.stopPropagation();
@@ -563,14 +592,25 @@ const LayerPanel = React.memo(function LayerPanel({ images, selectedId, onSelect
     const handleMouseMove = React.useCallback((e) => {
         if (!dragState)
             return;
-        setDragState(prev => prev
-            ? {
-                ...prev,
-                currentY: e.clientY
-            }
-            : null);
+        // Throttle with RAF for smooth performance
+        if (rafRef.current !== null)
+            return;
+        rafRef.current = requestAnimationFrame(() => {
+            setDragState(prev => prev
+                ? {
+                    ...prev,
+                    currentY: e.clientY
+                }
+                : null);
+            rafRef.current = null;
+        });
     }, [dragState]);
     const handleMouseUp = React.useCallback(() => {
+        // Cancel any pending RAF
+        if (rafRef.current !== null) {
+            cancelAnimationFrame(rafRef.current);
+            rafRef.current = null;
+        }
         if (!dragState)
             return;
         const deltaY = dragState.currentY - dragState.startY;
@@ -609,12 +649,12 @@ const LayerPanel = React.memo(function LayerPanel({ images, selectedId, onSelect
         let transition = "transform 0.3s ease-out, background-color 0.3s ease-out, box-shadow 0.3s ease-out, border-color 0.3s ease-out";
         if (dragState) {
             if (isDragging) {
-                // The dragged item follows the mouse
+                // The dragged item follows the mouse - no transitions during drag
                 const deltaY = dragState.currentY - dragState.startY;
                 transform = `translateY(${deltaY}px) scale(1.02)`;
                 zIndex = 100;
                 boxShadow = "0 8px 24px rgba(0,0,0,0.15), 0 4px 8px rgba(0, 0, 0, 0.1)";
-                transition = "box-shadow 0.3s ease-out";
+                transition = "none";
             }
             else {
                 // Other items shift to make room
@@ -648,7 +688,8 @@ const LayerPanel = React.memo(function LayerPanel({ images, selectedId, onSelect
             transition,
             boxShadow,
             height: `${ITEM_HEIGHT}px`,
-            boxSizing: "border-box"
+            boxSizing: "border-box",
+            willChange: dragState ? "transform" : "auto"
         };
     };
     const thumbnailStyle = {
@@ -694,10 +735,6 @@ const LayerPanel = React.memo(function LayerPanel({ images, selectedId, onSelect
     const [hoveredDeleteId, setHoveredDeleteId] = React.useState(null);
     const [addButtonHovered, setAddButtonHovered] = React.useState(false);
     const [addButtonActive, setAddButtonActive] = React.useState(false);
-    // Front icon
-    const FrontIcon = () => (jsxRuntime.jsxs("svg", { width: "16", height: "16", viewBox: "0 0 24 24", fill: "none", xmlns: "http://www.w3.org/2000/svg", children: [jsxRuntime.jsx("path", { d: "M20 21V19a4 4 0 00-4-4H8a4 4 0 00-4 4v2", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round" }), jsxRuntime.jsx("circle", { cx: "12", cy: "7", r: "4", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round" })] }));
-    // Back icon
-    const BackIcon = () => (jsxRuntime.jsxs("svg", { width: "16", height: "16", viewBox: "0 0 24 24", fill: "none", xmlns: "http://www.w3.org/2000/svg", children: [jsxRuntime.jsx("path", { d: "M20 21V19a4 4 0 00-4-4H8a4 4 0 00-4 4v2", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round" }), jsxRuntime.jsx("circle", { cx: "12", cy: "7", r: "4", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round" }), jsxRuntime.jsx("path", { d: "M3 3l18 18", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round" })] }));
     return (jsxRuntime.jsxs("div", { style: panelStyle, children: [jsxRuntime.jsx("div", { style: headerStyle, children: jsxRuntime.jsxs("div", { style: viewToggleContainerStyle, children: [jsxRuntime.jsxs("button", { style: getViewButtonStyle(currentView === "front"), onClick: () => onViewChange("front"), children: [jsxRuntime.jsx(FrontIcon, {}), "\u041E\u0442\u043F\u0440\u0435\u0434"] }), jsxRuntime.jsxs("button", { style: getViewButtonStyle(currentView === "back"), onClick: () => onViewChange("back"), children: [jsxRuntime.jsx(BackIcon, {}), "\u041E\u0442\u0437\u0430\u0434"] })] }) }), jsxRuntime.jsx("div", { style: { padding: "12px 12px 4px" }, children: jsxRuntime.jsxs("button", { style: {
                         ...addButtonStyle,
                         margin: 0,
@@ -714,7 +751,7 @@ const LayerPanel = React.memo(function LayerPanel({ images, selectedId, onSelect
                     }, onClick: onAddImage, onMouseEnter: () => setAddButtonHovered(true), onMouseLeave: () => {
                         setAddButtonHovered(false);
                         setAddButtonActive(false);
-                    }, onMouseDown: () => setAddButtonActive(true), onMouseUp: () => setAddButtonActive(false), children: [jsxRuntime.jsx(PlusIcon, {}), "\u0414\u043E\u0431\u0430\u0432\u0438 \u0438\u0437\u043E\u0431\u0440\u0430\u0436\u0435\u043D\u0438\u0435"] }) }), images.length === 0 ? (jsxRuntime.jsxs("div", { style: emptyStyle, children: [jsxRuntime.jsx("div", { style: { marginBottom: "4px", opacity: 0.6 }, children: jsxRuntime.jsxs("svg", { width: "24", height: "24", viewBox: "0 0 16 16", fill: "none", xmlns: "http://www.w3.org/2000/svg", children: [jsxRuntime.jsx("path", { d: "M8 1L1 4.5L8 8L15 4.5L8 1Z", stroke: "currentColor", strokeWidth: "1.5", strokeLinecap: "round", strokeLinejoin: "round" }), jsxRuntime.jsx("path", { d: "M1 11.5L8 15L15 11.5", stroke: "currentColor", strokeWidth: "1.5", strokeLinecap: "round", strokeLinejoin: "round" }), jsxRuntime.jsx("path", { d: "M1 8L8 11.5L15 8", stroke: "currentColor", strokeWidth: "1.5", strokeLinecap: "round", strokeLinejoin: "round" })] }) }), "\u041D\u044F\u043C\u0430 \u0441\u043B\u043E\u0435\u0432\u0435"] })) : (jsxRuntime.jsx("ul", { ref: listRef, style: listStyle, children: reversedImages.map((image, reversedIndex) => {
+                    }, onMouseDown: () => setAddButtonActive(true), onMouseUp: () => setAddButtonActive(false), children: [jsxRuntime.jsx(PlusIcon, {}), "\u0414\u043E\u0431\u0430\u0432\u0438 \u0438\u0437\u043E\u0431\u0440\u0430\u0436\u0435\u043D\u0438\u0435"] }) }), images.length === 0 ? (jsxRuntime.jsxs("div", { style: emptyStyle, children: [jsxRuntime.jsx("div", { style: { marginBottom: "4px", opacity: 0.6 }, children: jsxRuntime.jsx(EmptyLayersIcon, {}) }), "\u041D\u044F\u043C\u0430 \u0441\u043B\u043E\u0435\u0432\u0435"] })) : (jsxRuntime.jsx("ul", { ref: listRef, style: listStyle, children: reversedImages.map((image, reversedIndex) => {
                     const originalIndex = images.length - 1 - reversedIndex;
                     const isSelected = image.id === selectedId;
                     const isDragging = (dragState === null || dragState === void 0 ? void 0 : dragState.draggingIndex) === reversedIndex;
@@ -722,7 +759,7 @@ const LayerPanel = React.memo(function LayerPanel({ images, selectedId, onSelect
                                     ...dragHandleStyle,
                                     cursor: isDragging ? "grabbing" : "grab",
                                     backgroundColor: isDragging ? "#e2e8f0" : "transparent"
-                                }, onMouseDown: e => handleMouseDown(e, reversedIndex), children: [jsxRuntime.jsx("div", { style: dragLineStyle }), jsxRuntime.jsx("div", { style: dragLineStyle }), jsxRuntime.jsx("div", { style: dragLineStyle })] }), jsxRuntime.jsx("img", { src: image.src, alt: `Layer ${originalIndex + 1}`, style: thumbnailStyle, draggable: false }), jsxRuntime.jsxs("span", { style: labelStyle, children: ["\u0421\u043B\u043E\u0439 ", originalIndex + 1] }), jsxRuntime.jsx("button", { style: hoveredDeleteId === image.id ? deleteButtonHoverStyle : deleteButtonStyle, onClick: e => handleDelete(e, image.id), onMouseEnter: () => setHoveredDeleteId(image.id), onMouseLeave: () => setHoveredDeleteId(null), title: "\u0418\u0437\u0442\u0440\u0438\u0439 \u0441\u043B\u043E\u0439", children: jsxRuntime.jsx("svg", { width: "14", height: "14", viewBox: "0 0 16 16", fill: "none", xmlns: "http://www.w3.org/2000/svg", children: jsxRuntime.jsx("path", { d: "M2 4h12M5.333 4V2.667a1.333 1.333 0 011.334-1.334h2.666a1.333 1.333 0 011.334 1.334V4m2 0v9.333a1.333 1.333 0 01-1.334 1.334H4.667a1.333 1.333 0 01-1.334-1.334V4h9.334z", stroke: "currentColor", strokeWidth: "1.5", strokeLinecap: "round", strokeLinejoin: "round" }) }) })] }, image.id));
+                                }, onMouseDown: e => handleMouseDown(e, reversedIndex), children: [jsxRuntime.jsx("div", { style: dragLineStyle }), jsxRuntime.jsx("div", { style: dragLineStyle }), jsxRuntime.jsx("div", { style: dragLineStyle })] }), jsxRuntime.jsx("img", { src: image.src, alt: `Layer ${originalIndex + 1}`, style: thumbnailStyle, draggable: false }), jsxRuntime.jsxs("span", { style: labelStyle, children: ["\u0421\u043B\u043E\u0439 ", originalIndex + 1] }), jsxRuntime.jsx("button", { style: hoveredDeleteId === image.id ? deleteButtonHoverStyle : deleteButtonStyle, onClick: e => handleDelete(e, image.id), onMouseEnter: () => setHoveredDeleteId(image.id), onMouseLeave: () => setHoveredDeleteId(null), title: "\u0418\u0437\u0442\u0440\u0438\u0439 \u0441\u043B\u043E\u0439", children: jsxRuntime.jsx(DeleteIcon, {}) })] }, image.id));
                 }) }))] }));
 });
 
@@ -838,7 +875,8 @@ const DraggableImage = React.memo(function DraggableImage({ imageData, isSelecte
         cursor: isDragging ? "grabbing" : "move",
         userSelect: "none",
         pointerEvents: "auto",
-        opacity: hasPrintableArea ? 0 : 1
+        opacity: hasPrintableArea ? 0 : 1,
+        willChange: isDragging ? "transform, left, top" : "auto"
     }), [transform.position.x, transform.position.y, transform.size.width, transform.size.height, transform.rotation, isDragging, hasPrintableArea]);
     return (jsxRuntime.jsx("img", { src: imageData.src, alt: "\u041A\u0430\u0447\u0435\u043D \u0434\u0438\u0437\u0430\u0439\u043D", style: imageStyle, draggable: false, onMouseDown: onMouseDown, onClick: e => {
             e.stopPropagation();
@@ -857,7 +895,8 @@ const ClippedImage = React.memo(function ClippedImage({ imageData, printableArea
         transform: transform.rotation ? `rotate(${transform.rotation}deg)` : undefined,
         transformOrigin: "center center",
         userSelect: "none",
-        pointerEvents: "none"
+        pointerEvents: "none",
+        willChange: "transform, left, top"
     }), [transform.position.x, transform.position.y, transform.size.width, transform.size.height, transform.rotation, printableArea]);
     return (jsxRuntime.jsx("img", { src: imageData.src, alt: "\u041A\u0430\u0447\u0435\u043D \u0434\u0438\u0437\u0430\u0439\u043D", style: imageStyle, draggable: false }));
 });
@@ -969,7 +1008,8 @@ function TShirtBuilder({ frontBgImage, backBgImage, config: configProp, onChange
         userSelect: "none",
         borderRadius: "10px",
         boxShadow: "0 2px 10px rgba(0, 0, 0, 0.1)",
-        fontFamily: "Roboto, -apple-system, BlinkMacSystemFont, sans-serif"
+        fontFamily: "Roboto, -apple-system, BlinkMacSystemFont, sans-serif",
+        contain: "layout style paint"
     }), [config.width, config.height, bgImage, currentBackgroundUrl, isDragging, dragMode]);
     const dropZoneStyle = React.useMemo(() => ({
         position: "absolute",

@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import type {
   ImageData,
   ImageTransform,
@@ -20,6 +20,8 @@ export function useImageTransform({ images, config, containerRef, onChange }: Us
   const [isDragging, setIsDragging] = useState(false);
   const [dragMode, setDragMode] = useState<DragMode | null>(null);
   const dragStateRef = useRef<DragState | null>(null);
+  const rafRef = useRef<number | null>(null);
+  const pendingMouseEvent = useRef<MouseEvent | null>(null);
 
   // Store latest values in refs to avoid recreating callbacks
   const imagesRef = useRef(images);
@@ -108,7 +110,7 @@ export function useImageTransform({ images, config, containerRef, onChange }: Us
     []
   );
 
-  const handleMouseMove = useCallback(
+  const processMouseMove = useCallback(
     (event: MouseEvent) => {
       const dragState = dragStateRef.current;
       if (!dragState) return;
@@ -242,7 +244,30 @@ export function useImageTransform({ images, config, containerRef, onChange }: Us
     [containerRef, updateImageTransform]
   );
 
+  // Throttle mousemove with requestAnimationFrame for smooth performance
+  const handleMouseMove = useCallback(
+    (event: MouseEvent) => {
+      pendingMouseEvent.current = event;
+
+      if (rafRef.current === null) {
+        rafRef.current = requestAnimationFrame(() => {
+          if (pendingMouseEvent.current) {
+            processMouseMove(pendingMouseEvent.current);
+          }
+          rafRef.current = null;
+        });
+      }
+    },
+    [processMouseMove]
+  );
+
   const handleMouseUp = useCallback(() => {
+    // Cancel any pending RAF
+    if (rafRef.current !== null) {
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
+    }
+    pendingMouseEvent.current = null;
     setIsDragging(false);
     setDragMode(null);
     dragStateRef.current = null;

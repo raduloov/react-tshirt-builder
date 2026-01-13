@@ -119,6 +119,8 @@ function useImageTransform({ images, config, containerRef, onChange }) {
     const [isDragging, setIsDragging] = useState(false);
     const [dragMode, setDragMode] = useState(null);
     const dragStateRef = useRef(null);
+    const rafRef = useRef(null);
+    const pendingMouseEvent = useRef(null);
     // Store latest values in refs to avoid recreating callbacks
     const imagesRef = useRef(images);
     const onChangeRef = useRef(onChange);
@@ -181,7 +183,7 @@ function useImageTransform({ images, config, containerRef, onChange }) {
             handle,
         };
     }, []);
-    const handleMouseMove = useCallback((event) => {
+    const processMouseMove = useCallback((event) => {
         const dragState = dragStateRef.current;
         if (!dragState)
             return;
@@ -284,7 +286,25 @@ function useImageTransform({ images, config, containerRef, onChange }) {
         }
         updateImageTransform(dragState.imageId, newTransform);
     }, [containerRef, updateImageTransform]);
+    // Throttle mousemove with requestAnimationFrame for smooth performance
+    const handleMouseMove = useCallback((event) => {
+        pendingMouseEvent.current = event;
+        if (rafRef.current === null) {
+            rafRef.current = requestAnimationFrame(() => {
+                if (pendingMouseEvent.current) {
+                    processMouseMove(pendingMouseEvent.current);
+                }
+                rafRef.current = null;
+            });
+        }
+    }, [processMouseMove]);
     const handleMouseUp = useCallback(() => {
+        // Cancel any pending RAF
+        if (rafRef.current !== null) {
+            cancelAnimationFrame(rafRef.current);
+            rafRef.current = null;
+        }
+        pendingMouseEvent.current = null;
         setIsDragging(false);
         setDragMode(null);
         dragStateRef.current = null;
@@ -524,8 +544,16 @@ const dragLineStyle = {
     backgroundColor: COLORS$1.GRAY,
     borderRadius: "1px"
 };
-// Plus icon for add button
-const PlusIcon = () => (jsx("svg", { width: "16", height: "16", viewBox: "0 0 16 16", fill: "none", xmlns: "http://www.w3.org/2000/svg", children: jsx("path", { d: "M8 3v10M3 8h10", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round" }) }));
+// Plus icon for add button - memoized to prevent recreation
+const PlusIcon = memo(() => (jsx("svg", { width: "16", height: "16", viewBox: "0 0 16 16", fill: "none", xmlns: "http://www.w3.org/2000/svg", children: jsx("path", { d: "M8 3v10M3 8h10", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round" }) })));
+// Front icon - memoized
+const FrontIcon = memo(() => (jsxs("svg", { width: "16", height: "16", viewBox: "0 0 24 24", fill: "none", xmlns: "http://www.w3.org/2000/svg", children: [jsx("path", { d: "M20 21V19a4 4 0 00-4-4H8a4 4 0 00-4 4v2", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round" }), jsx("circle", { cx: "12", cy: "7", r: "4", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round" })] })));
+// Back icon - memoized
+const BackIcon = memo(() => (jsxs("svg", { width: "16", height: "16", viewBox: "0 0 24 24", fill: "none", xmlns: "http://www.w3.org/2000/svg", children: [jsx("path", { d: "M20 21V19a4 4 0 00-4-4H8a4 4 0 00-4 4v2", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round" }), jsx("circle", { cx: "12", cy: "7", r: "4", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round" }), jsx("path", { d: "M3 3l18 18", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round" })] })));
+// Delete icon - memoized
+const DeleteIcon = memo(() => (jsx("svg", { width: "14", height: "14", viewBox: "0 0 16 16", fill: "none", xmlns: "http://www.w3.org/2000/svg", children: jsx("path", { d: "M2 4h12M5.333 4V2.667a1.333 1.333 0 011.334-1.334h2.666a1.333 1.333 0 011.334 1.334V4m2 0v9.333a1.333 1.333 0 01-1.334 1.334H4.667a1.333 1.333 0 01-1.334-1.334V4h9.334z", stroke: "currentColor", strokeWidth: "1.5", strokeLinecap: "round", strokeLinejoin: "round" }) })));
+// Empty layers icon - memoized
+const EmptyLayersIcon = memo(() => (jsxs("svg", { width: "24", height: "24", viewBox: "0 0 16 16", fill: "none", xmlns: "http://www.w3.org/2000/svg", children: [jsx("path", { d: "M8 1L1 4.5L8 8L15 4.5L8 1Z", stroke: "currentColor", strokeWidth: "1.5", strokeLinecap: "round", strokeLinejoin: "round" }), jsx("path", { d: "M1 11.5L8 15L15 11.5", stroke: "currentColor", strokeWidth: "1.5", strokeLinecap: "round", strokeLinejoin: "round" }), jsx("path", { d: "M1 8L8 11.5L15 8", stroke: "currentColor", strokeWidth: "1.5", strokeLinecap: "round", strokeLinejoin: "round" })] })));
 const addButtonStyle = {
     display: "flex",
     alignItems: "center",
@@ -547,8 +575,9 @@ const addButtonStyle = {
 const LayerPanel = memo(function LayerPanel({ images, selectedId, onSelect, onDelete, onReorder, onAddImage, currentView, onViewChange }) {
     const [dragState, setDragState] = useState(null);
     const listRef = useRef(null);
-    // Reverse to show top layer first (last in array = top = first in list)
-    const reversedImages = [...images].reverse();
+    const rafRef = useRef(null);
+    // Memoize reversed array to prevent recreation on every render
+    const reversedImages = useMemo(() => [...images].reverse(), [images]);
     const handleMouseDown = useCallback((e, reversedIndex) => {
         e.preventDefault();
         e.stopPropagation();
@@ -561,14 +590,25 @@ const LayerPanel = memo(function LayerPanel({ images, selectedId, onSelect, onDe
     const handleMouseMove = useCallback((e) => {
         if (!dragState)
             return;
-        setDragState(prev => prev
-            ? {
-                ...prev,
-                currentY: e.clientY
-            }
-            : null);
+        // Throttle with RAF for smooth performance
+        if (rafRef.current !== null)
+            return;
+        rafRef.current = requestAnimationFrame(() => {
+            setDragState(prev => prev
+                ? {
+                    ...prev,
+                    currentY: e.clientY
+                }
+                : null);
+            rafRef.current = null;
+        });
     }, [dragState]);
     const handleMouseUp = useCallback(() => {
+        // Cancel any pending RAF
+        if (rafRef.current !== null) {
+            cancelAnimationFrame(rafRef.current);
+            rafRef.current = null;
+        }
         if (!dragState)
             return;
         const deltaY = dragState.currentY - dragState.startY;
@@ -607,12 +647,12 @@ const LayerPanel = memo(function LayerPanel({ images, selectedId, onSelect, onDe
         let transition = "transform 0.3s ease-out, background-color 0.3s ease-out, box-shadow 0.3s ease-out, border-color 0.3s ease-out";
         if (dragState) {
             if (isDragging) {
-                // The dragged item follows the mouse
+                // The dragged item follows the mouse - no transitions during drag
                 const deltaY = dragState.currentY - dragState.startY;
                 transform = `translateY(${deltaY}px) scale(1.02)`;
                 zIndex = 100;
                 boxShadow = "0 8px 24px rgba(0,0,0,0.15), 0 4px 8px rgba(0, 0, 0, 0.1)";
-                transition = "box-shadow 0.3s ease-out";
+                transition = "none";
             }
             else {
                 // Other items shift to make room
@@ -646,7 +686,8 @@ const LayerPanel = memo(function LayerPanel({ images, selectedId, onSelect, onDe
             transition,
             boxShadow,
             height: `${ITEM_HEIGHT}px`,
-            boxSizing: "border-box"
+            boxSizing: "border-box",
+            willChange: dragState ? "transform" : "auto"
         };
     };
     const thumbnailStyle = {
@@ -692,10 +733,6 @@ const LayerPanel = memo(function LayerPanel({ images, selectedId, onSelect, onDe
     const [hoveredDeleteId, setHoveredDeleteId] = useState(null);
     const [addButtonHovered, setAddButtonHovered] = useState(false);
     const [addButtonActive, setAddButtonActive] = useState(false);
-    // Front icon
-    const FrontIcon = () => (jsxs("svg", { width: "16", height: "16", viewBox: "0 0 24 24", fill: "none", xmlns: "http://www.w3.org/2000/svg", children: [jsx("path", { d: "M20 21V19a4 4 0 00-4-4H8a4 4 0 00-4 4v2", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round" }), jsx("circle", { cx: "12", cy: "7", r: "4", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round" })] }));
-    // Back icon
-    const BackIcon = () => (jsxs("svg", { width: "16", height: "16", viewBox: "0 0 24 24", fill: "none", xmlns: "http://www.w3.org/2000/svg", children: [jsx("path", { d: "M20 21V19a4 4 0 00-4-4H8a4 4 0 00-4 4v2", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round" }), jsx("circle", { cx: "12", cy: "7", r: "4", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round" }), jsx("path", { d: "M3 3l18 18", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round" })] }));
     return (jsxs("div", { style: panelStyle, children: [jsx("div", { style: headerStyle, children: jsxs("div", { style: viewToggleContainerStyle, children: [jsxs("button", { style: getViewButtonStyle(currentView === "front"), onClick: () => onViewChange("front"), children: [jsx(FrontIcon, {}), "\u041E\u0442\u043F\u0440\u0435\u0434"] }), jsxs("button", { style: getViewButtonStyle(currentView === "back"), onClick: () => onViewChange("back"), children: [jsx(BackIcon, {}), "\u041E\u0442\u0437\u0430\u0434"] })] }) }), jsx("div", { style: { padding: "12px 12px 4px" }, children: jsxs("button", { style: {
                         ...addButtonStyle,
                         margin: 0,
@@ -712,7 +749,7 @@ const LayerPanel = memo(function LayerPanel({ images, selectedId, onSelect, onDe
                     }, onClick: onAddImage, onMouseEnter: () => setAddButtonHovered(true), onMouseLeave: () => {
                         setAddButtonHovered(false);
                         setAddButtonActive(false);
-                    }, onMouseDown: () => setAddButtonActive(true), onMouseUp: () => setAddButtonActive(false), children: [jsx(PlusIcon, {}), "\u0414\u043E\u0431\u0430\u0432\u0438 \u0438\u0437\u043E\u0431\u0440\u0430\u0436\u0435\u043D\u0438\u0435"] }) }), images.length === 0 ? (jsxs("div", { style: emptyStyle, children: [jsx("div", { style: { marginBottom: "4px", opacity: 0.6 }, children: jsxs("svg", { width: "24", height: "24", viewBox: "0 0 16 16", fill: "none", xmlns: "http://www.w3.org/2000/svg", children: [jsx("path", { d: "M8 1L1 4.5L8 8L15 4.5L8 1Z", stroke: "currentColor", strokeWidth: "1.5", strokeLinecap: "round", strokeLinejoin: "round" }), jsx("path", { d: "M1 11.5L8 15L15 11.5", stroke: "currentColor", strokeWidth: "1.5", strokeLinecap: "round", strokeLinejoin: "round" }), jsx("path", { d: "M1 8L8 11.5L15 8", stroke: "currentColor", strokeWidth: "1.5", strokeLinecap: "round", strokeLinejoin: "round" })] }) }), "\u041D\u044F\u043C\u0430 \u0441\u043B\u043E\u0435\u0432\u0435"] })) : (jsx("ul", { ref: listRef, style: listStyle, children: reversedImages.map((image, reversedIndex) => {
+                    }, onMouseDown: () => setAddButtonActive(true), onMouseUp: () => setAddButtonActive(false), children: [jsx(PlusIcon, {}), "\u0414\u043E\u0431\u0430\u0432\u0438 \u0438\u0437\u043E\u0431\u0440\u0430\u0436\u0435\u043D\u0438\u0435"] }) }), images.length === 0 ? (jsxs("div", { style: emptyStyle, children: [jsx("div", { style: { marginBottom: "4px", opacity: 0.6 }, children: jsx(EmptyLayersIcon, {}) }), "\u041D\u044F\u043C\u0430 \u0441\u043B\u043E\u0435\u0432\u0435"] })) : (jsx("ul", { ref: listRef, style: listStyle, children: reversedImages.map((image, reversedIndex) => {
                     const originalIndex = images.length - 1 - reversedIndex;
                     const isSelected = image.id === selectedId;
                     const isDragging = (dragState === null || dragState === void 0 ? void 0 : dragState.draggingIndex) === reversedIndex;
@@ -720,7 +757,7 @@ const LayerPanel = memo(function LayerPanel({ images, selectedId, onSelect, onDe
                                     ...dragHandleStyle,
                                     cursor: isDragging ? "grabbing" : "grab",
                                     backgroundColor: isDragging ? "#e2e8f0" : "transparent"
-                                }, onMouseDown: e => handleMouseDown(e, reversedIndex), children: [jsx("div", { style: dragLineStyle }), jsx("div", { style: dragLineStyle }), jsx("div", { style: dragLineStyle })] }), jsx("img", { src: image.src, alt: `Layer ${originalIndex + 1}`, style: thumbnailStyle, draggable: false }), jsxs("span", { style: labelStyle, children: ["\u0421\u043B\u043E\u0439 ", originalIndex + 1] }), jsx("button", { style: hoveredDeleteId === image.id ? deleteButtonHoverStyle : deleteButtonStyle, onClick: e => handleDelete(e, image.id), onMouseEnter: () => setHoveredDeleteId(image.id), onMouseLeave: () => setHoveredDeleteId(null), title: "\u0418\u0437\u0442\u0440\u0438\u0439 \u0441\u043B\u043E\u0439", children: jsx("svg", { width: "14", height: "14", viewBox: "0 0 16 16", fill: "none", xmlns: "http://www.w3.org/2000/svg", children: jsx("path", { d: "M2 4h12M5.333 4V2.667a1.333 1.333 0 011.334-1.334h2.666a1.333 1.333 0 011.334 1.334V4m2 0v9.333a1.333 1.333 0 01-1.334 1.334H4.667a1.333 1.333 0 01-1.334-1.334V4h9.334z", stroke: "currentColor", strokeWidth: "1.5", strokeLinecap: "round", strokeLinejoin: "round" }) }) })] }, image.id));
+                                }, onMouseDown: e => handleMouseDown(e, reversedIndex), children: [jsx("div", { style: dragLineStyle }), jsx("div", { style: dragLineStyle }), jsx("div", { style: dragLineStyle })] }), jsx("img", { src: image.src, alt: `Layer ${originalIndex + 1}`, style: thumbnailStyle, draggable: false }), jsxs("span", { style: labelStyle, children: ["\u0421\u043B\u043E\u0439 ", originalIndex + 1] }), jsx("button", { style: hoveredDeleteId === image.id ? deleteButtonHoverStyle : deleteButtonStyle, onClick: e => handleDelete(e, image.id), onMouseEnter: () => setHoveredDeleteId(image.id), onMouseLeave: () => setHoveredDeleteId(null), title: "\u0418\u0437\u0442\u0440\u0438\u0439 \u0441\u043B\u043E\u0439", children: jsx(DeleteIcon, {}) })] }, image.id));
                 }) }))] }));
 });
 
@@ -836,7 +873,8 @@ const DraggableImage = memo(function DraggableImage({ imageData, isSelected, isD
         cursor: isDragging ? "grabbing" : "move",
         userSelect: "none",
         pointerEvents: "auto",
-        opacity: hasPrintableArea ? 0 : 1
+        opacity: hasPrintableArea ? 0 : 1,
+        willChange: isDragging ? "transform, left, top" : "auto"
     }), [transform.position.x, transform.position.y, transform.size.width, transform.size.height, transform.rotation, isDragging, hasPrintableArea]);
     return (jsx("img", { src: imageData.src, alt: "\u041A\u0430\u0447\u0435\u043D \u0434\u0438\u0437\u0430\u0439\u043D", style: imageStyle, draggable: false, onMouseDown: onMouseDown, onClick: e => {
             e.stopPropagation();
@@ -855,7 +893,8 @@ const ClippedImage = memo(function ClippedImage({ imageData, printableArea }) {
         transform: transform.rotation ? `rotate(${transform.rotation}deg)` : undefined,
         transformOrigin: "center center",
         userSelect: "none",
-        pointerEvents: "none"
+        pointerEvents: "none",
+        willChange: "transform, left, top"
     }), [transform.position.x, transform.position.y, transform.size.width, transform.size.height, transform.rotation, printableArea]);
     return (jsx("img", { src: imageData.src, alt: "\u041A\u0430\u0447\u0435\u043D \u0434\u0438\u0437\u0430\u0439\u043D", style: imageStyle, draggable: false }));
 });
@@ -967,7 +1006,8 @@ function TShirtBuilder({ frontBgImage, backBgImage, config: configProp, onChange
         userSelect: "none",
         borderRadius: "10px",
         boxShadow: "0 2px 10px rgba(0, 0, 0, 0.1)",
-        fontFamily: "Roboto, -apple-system, BlinkMacSystemFont, sans-serif"
+        fontFamily: "Roboto, -apple-system, BlinkMacSystemFont, sans-serif",
+        contain: "layout style paint"
     }), [config.width, config.height, bgImage, currentBackgroundUrl, isDragging, dragMode]);
     const dropZoneStyle = useMemo(() => ({
         position: "absolute",
