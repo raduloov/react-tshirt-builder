@@ -169,6 +169,7 @@ const EmptyLayersIcon = () => (
   </svg>
 );
 
+// Base add button style - will be enhanced for mobile via getAddButtonStyle function
 const addButtonStyle: React.CSSProperties = {
   display: "flex",
   alignItems: "center",
@@ -187,6 +188,16 @@ const addButtonStyle: React.CSSProperties = {
   boxShadow: "0 2px 10px rgba(250, 192, 0, 0.3)",
   transition: "filter 0.1s ease-out, transform 0.1s ease-out"
 };
+
+// Mobile-optimized add button style
+const getMobileAddButtonStyle = (isMobile: boolean): React.CSSProperties => ({
+  ...addButtonStyle,
+  padding: isMobile ? "16px 20px" : "12px 16px",
+  minHeight: isMobile ? "52px" : "auto",
+  fontSize: isMobile ? "15px" : "14px",
+  gap: isMobile ? "8px" : "6px",
+  touchAction: "manipulation"
+});
 
 export function LayerPanel({
   images,
@@ -526,7 +537,7 @@ export function LayerPanel({
       <div style={{ padding: "12px 12px 4px" }}>
         <button
           style={{
-            ...addButtonStyle,
+            ...getMobileAddButtonStyle(isMobile),
             margin: 0,
             ...(addButtonActive
               ? {
@@ -548,16 +559,40 @@ export function LayerPanel({
           onMouseDown={() => setAddButtonActive(true)}
           onMouseUp={() => setAddButtonActive(false)}
         >
-          <PlusIcon />
-          Добави изображение
+          {isMobile ? (
+            // Camera icon for mobile
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path
+                d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2v11z"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+              <circle cx="12" cy="13" r="4" stroke="currentColor" strokeWidth="2" />
+            </svg>
+          ) : (
+            <PlusIcon />
+          )}
+          {isMobile ? "Качи снимка" : "Добави изображение"}
         </button>
       </div>
       {images.length === 0 ? (
-        <div style={emptyStyle}>
-          <div style={{ marginBottom: "4px", opacity: 0.6 }}>
+        <div style={{
+          ...emptyStyle,
+          padding: isMobile ? "24px 16px" : "32px 20px"
+        }}>
+          <div style={{ marginBottom: "8px", opacity: 0.6 }}>
             <EmptyLayersIcon />
           </div>
-          Няма слоеве
+          <div style={{ marginBottom: isMobile ? "8px" : "0" }}>
+            Няма слоеве
+          </div>
+          {isMobile && (
+            <div style={{ fontSize: "12px", color: COLORS.GRAY, lineHeight: 1.4 }}>
+              Натиснете бутона отгоре за да качите снимка от камера или галерия
+            </div>
+          )}
         </div>
       ) : (
         <ul ref={listRef} style={listStyle}>

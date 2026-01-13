@@ -52,7 +52,7 @@ interface EditorConfig {
     maxFileSize?: number;
 }
 type LayoutMode = 'horizontal' | 'vertical';
-interface ResponsiveConfig {
+interface ResponsiveConfig$1 {
     /** Enable responsive behavior that adapts to viewport size */
     enabled?: boolean;
     /** Mobile breakpoint max width in pixels (default: 639) */
@@ -76,7 +76,7 @@ interface TShirtBuilderProps {
     /** Editor configuration */
     config?: Partial<EditorConfig>;
     /** Responsive configuration for mobile/tablet adaptation */
-    responsive?: ResponsiveConfig;
+    responsive?: ResponsiveConfig$1;
     /** Callback when images change (includes both views) */
     onChange?: (images: ViewImages, currentView: TShirtView) => void;
     /** Callback when export is requested (returns both front and back) */
@@ -131,18 +131,32 @@ interface LayerPanelProps {
 }
 declare function LayerPanel({ images, selectedId, onSelect, onDelete, onReorder, onAddImage, currentView, onViewChange, compact, isMobile }: LayerPanelProps): react_jsx_runtime.JSX.Element;
 
+interface UploadState {
+    /** Whether an upload is currently in progress */
+    isUploading: boolean;
+    /** Upload progress percentage (0-100) */
+    progress: number;
+    /** File name being uploaded */
+    fileName: string | null;
+}
 interface UseImageUploadOptions {
     config: EditorConfig;
     onImageLoad: (imageData: ImageData) => void;
     onError?: (error: string) => void;
+    /** Enable mobile-optimized upload experience */
+    isMobile?: boolean;
 }
-declare function useImageUpload({ config, onImageLoad, onError }: UseImageUploadOptions): {
+declare function useImageUpload({ config, onImageLoad, onError, isMobile }: UseImageUploadOptions): {
     inputRef: React$1.RefObject<HTMLInputElement>;
     handleFileChange: (event: React.ChangeEvent<HTMLInputElement>) => void;
     handleDrop: (event: React.DragEvent) => void;
     handleDragOver: (event: React.DragEvent) => void;
     openFilePicker: () => void;
+    handlePaste: (event: ClipboardEvent) => void;
     acceptedTypes: string[];
+    acceptAttribute: string;
+    uploadState: UploadState;
+    isMobile: boolean;
 };
 
 interface UseImageTransformOptions {
@@ -170,8 +184,41 @@ declare function useImageTransform({ images, config, containerRef, onChange, dis
     updateImageTransform: (imageId: string, newTransform: ImageTransform) => void;
 };
 
+type Breakpoint = 'mobile' | 'tablet' | 'desktop';
+interface ResponsiveState {
+    /** Current breakpoint: mobile (<640px), tablet (640-1024px), desktop (>1024px) */
+    breakpoint: Breakpoint;
+    /** True when viewport is mobile (<640px) */
+    isMobile: boolean;
+    /** True when viewport is tablet (640-1024px) */
+    isTablet: boolean;
+    /** True when viewport is desktop (>1024px) */
+    isDesktop: boolean;
+    /** Current viewport width in pixels */
+    viewportWidth: number;
+    /** Current viewport height in pixels */
+    viewportHeight: number;
+    /** True when device is in portrait orientation */
+    isPortrait: boolean;
+    /** True when device is in landscape orientation */
+    isLandscape: boolean;
+}
+interface ResponsiveConfig {
+    /** Mobile breakpoint max width (default: 639px) */
+    mobileBreakpoint?: number;
+    /** Tablet breakpoint max width (default: 1024px) */
+    tabletBreakpoint?: number;
+    /** Enable/disable responsive behavior */
+    enabled?: boolean;
+}
+/**
+ * Hook for detecting viewport breakpoints and responsive state.
+ * Uses matchMedia for efficient breakpoint detection.
+ */
+declare function useResponsive(config?: ResponsiveConfig): ResponsiveState;
+
 declare function exportToDataUrl(canvas: HTMLCanvasElement, backgroundImage: HTMLImageElement | null, images: ImageData[], config: EditorConfig, format?: 'image/png' | 'image/jpeg', quality?: number): Promise<string>;
 declare function createOffscreenCanvas(width: number, height: number): HTMLCanvasElement;
 
-export { Controls, LayerPanel, TShirtBuilder, createOffscreenCanvas, exportToDataUrl, useImageTransform, useImageUpload };
-export type { BoundingBox, ControlHandle, DragMode, DragState, EditorConfig, ImageData, ImageTransform, Position, Size, TShirtBuilderProps, TShirtView, ViewImages };
+export { Controls, LayerPanel, TShirtBuilder, createOffscreenCanvas, exportToDataUrl, useImageTransform, useImageUpload, useResponsive };
+export type { BoundingBox, Breakpoint, ControlHandle, DragMode, DragState, EditorConfig, ImageData, ImageTransform, Position, ResponsiveState, Size, TShirtBuilderProps, TShirtView, UploadState, ViewImages };

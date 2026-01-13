@@ -8,13 +8,23 @@ const DEFAULT_MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 function generateId() {
     return Math.random().toString(36).substring(2, 11);
 }
-function useImageUpload({ config, onImageLoad, onError }) {
+function useImageUpload({ config, onImageLoad, onError, isMobile = false }) {
     const inputRef = React.useRef(null);
+    const [uploadState, setUploadState] = React.useState({
+        isUploading: false,
+        progress: 0,
+        fileName: null
+    });
     const acceptedTypes = config.acceptedFileTypes || DEFAULT_ACCEPTED_TYPES;
     const maxFileSize = config.maxFileSize || DEFAULT_MAX_FILE_SIZE;
+    // For mobile, use image/* to allow camera and all image types
+    // For desktop, use specific MIME types
+    const acceptAttribute = isMobile ? 'image/*' : acceptedTypes.join(',');
     const processFile = React.useCallback((file) => {
-        // Validate file type
-        if (!acceptedTypes.includes(file.type)) {
+        // For mobile, be more lenient with MIME types (camera may return different types)
+        // Check if it's an image by prefix
+        const isImage = file.type.startsWith('image/') || acceptedTypes.includes(file.type);
+        if (!isImage) {
             onError === null || onError === void 0 ? void 0 : onError(`Невалиден тип файл. Позволени: ${acceptedTypes.join(', ')}`);
             return;
         }
@@ -23,12 +33,28 @@ function useImageUpload({ config, onImageLoad, onError }) {
             onError === null || onError === void 0 ? void 0 : onError(`Файлът е твърде голям. Максимален размер: ${Math.round(maxFileSize / 1024 / 1024)}MB`);
             return;
         }
+        // Set uploading state
+        setUploadState({
+            isUploading: true,
+            progress: 0,
+            fileName: file.name
+        });
         const reader = new FileReader();
+        // Track progress for visual feedback
+        reader.onprogress = (event) => {
+            if (event.lengthComputable) {
+                const progress = Math.round((event.loaded / event.total) * 50); // 0-50% for reading
+                setUploadState(prev => ({ ...prev, progress }));
+            }
+        };
         reader.onload = (e) => {
             var _a;
             const src = (_a = e.target) === null || _a === void 0 ? void 0 : _a.result;
             const img = new Image();
+            // Update progress - file read complete, now loading image
+            setUploadState(prev => ({ ...prev, progress: 60 }));
             img.onload = () => {
+                setUploadState(prev => ({ ...prev, progress: 80 }));
                 const { naturalWidth, naturalHeight } = img;
                 // Calculate initial size to fit within editor while maintaining aspect ratio
                 const printableArea = config.printableArea || {
@@ -60,6 +86,8 @@ function useImageUpload({ config, onImageLoad, onError }) {
                     size: { width, height },
                     rotation: 0,
                 };
+                // Complete - 100%
+                setUploadState(prev => ({ ...prev, progress: 100 }));
                 onImageLoad({
                     id: generateId(),
                     src,
@@ -67,13 +95,31 @@ function useImageUpload({ config, onImageLoad, onError }) {
                     naturalHeight,
                     transform,
                 });
+                // Reset upload state after a brief delay for visual feedback
+                setTimeout(() => {
+                    setUploadState({
+                        isUploading: false,
+                        progress: 0,
+                        fileName: null
+                    });
+                }, 300);
             };
             img.onerror = () => {
+                setUploadState({
+                    isUploading: false,
+                    progress: 0,
+                    fileName: null
+                });
                 onError === null || onError === void 0 ? void 0 : onError('Грешка при зареждане на изображението');
             };
             img.src = src;
         };
         reader.onerror = () => {
+            setUploadState({
+                isUploading: false,
+                progress: 0,
+                fileName: null
+            });
             onError === null || onError === void 0 ? void 0 : onError('Грешка при четене на файла');
         };
         reader.readAsDataURL(file);
@@ -106,13 +152,35 @@ function useImageUpload({ config, onImageLoad, onError }) {
         var _a;
         (_a = inputRef.current) === null || _a === void 0 ? void 0 : _a.click();
     }, []);
+    // Handle paste from clipboard
+    const handlePaste = React.useCallback((event) => {
+        var _a;
+        const items = (_a = event.clipboardData) === null || _a === void 0 ? void 0 : _a.items;
+        if (!items)
+            return;
+        for (let i = 0; i < items.length; i++) {
+            const item = items[i];
+            if (item.type.startsWith('image/')) {
+                const file = item.getAsFile();
+                if (file) {
+                    event.preventDefault();
+                    processFile(file);
+                    return;
+                }
+            }
+        }
+    }, [processFile]);
     return {
         inputRef,
         handleFileChange,
         handleDrop,
         handleDragOver,
         openFilePicker,
+        handlePaste,
         acceptedTypes,
+        acceptAttribute,
+        uploadState,
+        isMobile,
     };
 }
 
@@ -835,6 +903,7 @@ const BackIcon = () => (jsxRuntime.jsxs("svg", { width: "16", height: "16", view
 const DeleteIcon = () => (jsxRuntime.jsx("svg", { width: "14", height: "14", viewBox: "0 0 16 16", fill: "none", xmlns: "http://www.w3.org/2000/svg", children: jsxRuntime.jsx("path", { d: "M2 4h12M5.333 4V2.667a1.333 1.333 0 011.334-1.334h2.666a1.333 1.333 0 011.334 1.334V4m2 0v9.333a1.333 1.333 0 01-1.334 1.334H4.667a1.333 1.333 0 01-1.334-1.334V4h9.334z", stroke: "currentColor", strokeWidth: "1.5", strokeLinecap: "round", strokeLinejoin: "round" }) }));
 // Empty layers icon
 const EmptyLayersIcon = () => (jsxRuntime.jsxs("svg", { width: "24", height: "24", viewBox: "0 0 16 16", fill: "none", xmlns: "http://www.w3.org/2000/svg", children: [jsxRuntime.jsx("path", { d: "M8 1L1 4.5L8 8L15 4.5L8 1Z", stroke: "currentColor", strokeWidth: "1.5", strokeLinecap: "round", strokeLinejoin: "round" }), jsxRuntime.jsx("path", { d: "M1 11.5L8 15L15 11.5", stroke: "currentColor", strokeWidth: "1.5", strokeLinecap: "round", strokeLinejoin: "round" }), jsxRuntime.jsx("path", { d: "M1 8L8 11.5L15 8", stroke: "currentColor", strokeWidth: "1.5", strokeLinecap: "round", strokeLinejoin: "round" })] }));
+// Base add button style - will be enhanced for mobile via getAddButtonStyle function
 const addButtonStyle = {
     display: "flex",
     alignItems: "center",
@@ -853,6 +922,15 @@ const addButtonStyle = {
     boxShadow: "0 2px 10px rgba(250, 192, 0, 0.3)",
     transition: "filter 0.1s ease-out, transform 0.1s ease-out"
 };
+// Mobile-optimized add button style
+const getMobileAddButtonStyle = (isMobile) => ({
+    ...addButtonStyle,
+    padding: isMobile ? "16px 20px" : "12px 16px",
+    minHeight: isMobile ? "52px" : "auto",
+    fontSize: isMobile ? "15px" : "14px",
+    gap: isMobile ? "8px" : "6px",
+    touchAction: "manipulation"
+});
 function LayerPanel({ images, selectedId, onSelect, onDelete, onReorder, onAddImage, currentView, onViewChange, compact = false, isMobile = false }) {
     // Adjust panel style for compact mode
     const dynamicPanelStyle = compact
@@ -1112,7 +1190,7 @@ function LayerPanel({ images, selectedId, onSelect, onDelete, onReorder, onAddIm
     const [addButtonHovered, setAddButtonHovered] = React.useState(false);
     const [addButtonActive, setAddButtonActive] = React.useState(false);
     return (jsxRuntime.jsxs("div", { style: dynamicPanelStyle, children: [!compact && (jsxRuntime.jsx("div", { style: headerStyle, children: jsxRuntime.jsxs("div", { style: viewToggleContainerStyle, children: [jsxRuntime.jsxs("button", { style: getViewButtonStyle(currentView === "front"), onClick: () => onViewChange("front"), children: [jsxRuntime.jsx(FrontIcon, {}), "\u041E\u0442\u043F\u0440\u0435\u0434"] }), jsxRuntime.jsxs("button", { style: getViewButtonStyle(currentView === "back"), onClick: () => onViewChange("back"), children: [jsxRuntime.jsx(BackIcon, {}), "\u041E\u0442\u0437\u0430\u0434"] })] }) })), jsxRuntime.jsx("div", { style: { padding: "12px 12px 4px" }, children: jsxRuntime.jsxs("button", { style: {
-                        ...addButtonStyle,
+                        ...getMobileAddButtonStyle(isMobile),
                         margin: 0,
                         ...(addButtonActive
                             ? {
@@ -1127,7 +1205,12 @@ function LayerPanel({ images, selectedId, onSelect, onDelete, onReorder, onAddIm
                     }, onClick: onAddImage, onMouseEnter: () => setAddButtonHovered(true), onMouseLeave: () => {
                         setAddButtonHovered(false);
                         setAddButtonActive(false);
-                    }, onMouseDown: () => setAddButtonActive(true), onMouseUp: () => setAddButtonActive(false), children: [jsxRuntime.jsx(PlusIcon, {}), "\u0414\u043E\u0431\u0430\u0432\u0438 \u0438\u0437\u043E\u0431\u0440\u0430\u0436\u0435\u043D\u0438\u0435"] }) }), images.length === 0 ? (jsxRuntime.jsxs("div", { style: emptyStyle, children: [jsxRuntime.jsx("div", { style: { marginBottom: "4px", opacity: 0.6 }, children: jsxRuntime.jsx(EmptyLayersIcon, {}) }), "\u041D\u044F\u043C\u0430 \u0441\u043B\u043E\u0435\u0432\u0435"] })) : (jsxRuntime.jsx("ul", { ref: listRef, style: listStyle, children: reversedImages.map((image, reversedIndex) => {
+                    }, onMouseDown: () => setAddButtonActive(true), onMouseUp: () => setAddButtonActive(false), children: [isMobile ? (
+                        // Camera icon for mobile
+                        jsxRuntime.jsxs("svg", { width: "18", height: "18", viewBox: "0 0 24 24", fill: "none", xmlns: "http://www.w3.org/2000/svg", children: [jsxRuntime.jsx("path", { d: "M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2v11z", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round" }), jsxRuntime.jsx("circle", { cx: "12", cy: "13", r: "4", stroke: "currentColor", strokeWidth: "2" })] })) : (jsxRuntime.jsx(PlusIcon, {})), isMobile ? "Качи снимка" : "Добави изображение"] }) }), images.length === 0 ? (jsxRuntime.jsxs("div", { style: {
+                    ...emptyStyle,
+                    padding: isMobile ? "24px 16px" : "32px 20px"
+                }, children: [jsxRuntime.jsx("div", { style: { marginBottom: "8px", opacity: 0.6 }, children: jsxRuntime.jsx(EmptyLayersIcon, {}) }), jsxRuntime.jsx("div", { style: { marginBottom: isMobile ? "8px" : "0" }, children: "\u041D\u044F\u043C\u0430 \u0441\u043B\u043E\u0435\u0432\u0435" }), isMobile && (jsxRuntime.jsx("div", { style: { fontSize: "12px", color: COLORS$1.GRAY, lineHeight: 1.4 }, children: "\u041D\u0430\u0442\u0438\u0441\u043D\u0435\u0442\u0435 \u0431\u0443\u0442\u043E\u043D\u0430 \u043E\u0442\u0433\u043E\u0440\u0435 \u0437\u0430 \u0434\u0430 \u043A\u0430\u0447\u0438\u0442\u0435 \u0441\u043D\u0438\u043C\u043A\u0430 \u043E\u0442 \u043A\u0430\u043C\u0435\u0440\u0430 \u0438\u043B\u0438 \u0433\u0430\u043B\u0435\u0440\u0438\u044F" }))] })) : (jsxRuntime.jsx("ul", { ref: listRef, style: listStyle, children: reversedImages.map((image, reversedIndex) => {
                     const originalIndex = images.length - 1 - reversedIndex;
                     const isSelected = image.id === selectedId;
                     const isDragging = (dragState === null || dragState === void 0 ? void 0 : dragState.draggingIndex) === reversedIndex;
@@ -1418,11 +1501,19 @@ function TShirtBuilder({ frontBgImage, backBgImage, config: configProp, responsi
         });
         setError(null);
     }, [currentView, onChange]);
-    const { inputRef, handleFileChange, handleDrop, handleDragOver, openFilePicker, acceptedTypes } = useImageUpload({
+    const isMobileMode = responsiveConfig.enabled && responsiveState.isMobile;
+    const { inputRef, handleFileChange, handleDrop, handleDragOver, openFilePicker, handlePaste, acceptAttribute, uploadState } = useImageUpload({
         config,
         onImageLoad: handleImageLoad,
-        onError: setError
+        onError: setError,
+        isMobile: isMobileMode
     });
+    // Listen for clipboard paste events
+    React.useEffect(() => {
+        const handleGlobalPaste = (e) => handlePaste(e);
+        window.addEventListener('paste', handleGlobalPaste);
+        return () => window.removeEventListener('paste', handleGlobalPaste);
+    }, [handlePaste]);
     const { selectedId, isDragging, isPinching, dragMode, handlePointerDown, handleTouchStart, selectImage, deselectAll, deleteImage, deleteSelected, reorderImage } = useImageTransform({
         images,
         config,
@@ -1587,7 +1678,12 @@ function TShirtBuilder({ frontBgImage, backBgImage, config: configProp, responsi
             setIsPanelCollapsed(true);
         }
     }, [layoutMode, isPanelCollapsed]);
-    return (jsxRuntime.jsxs("div", { ref: wrapperRef, className: className, style: { ...wrapperStyle, ...style }, children: [error && (jsxRuntime.jsxs("div", { style: {
+    return (jsxRuntime.jsxs("div", { ref: wrapperRef, className: className, style: { ...wrapperStyle, ...style }, children: [jsxRuntime.jsx("style", { children: `
+          @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+          }
+        ` }), error && (jsxRuntime.jsxs("div", { style: {
                     display: "flex",
                     alignItems: "center",
                     gap: "8px",
@@ -1672,19 +1768,23 @@ function TShirtBuilder({ frontBgImage, backBgImage, config: configProp, responsi
                                         }, onDelete: deleteImage, onReorder: reorderImage, onAddImage: openFilePicker, currentView: currentView, onViewChange: setCurrentView, compact: true, isMobile: true }) })] })) : (jsxRuntime.jsx(LayerPanel, { images: images, selectedId: selectedId, onSelect: (id) => {
                                 selectImage(id);
                                 handleMobileImageInteraction();
-                            }, onDelete: deleteImage, onReorder: reorderImage, onAddImage: openFilePicker, currentView: currentView, onViewChange: setCurrentView, compact: false, isMobile: false })) }), jsxRuntime.jsxs("div", { style: canvasColumnStyle, children: [jsxRuntime.jsxs("div", { ref: containerRef, style: containerStyle, onDrop: handleDrop, onDragOver: handleDragOver, onClick: handleContainerClick, children: [images.length === 0 && (jsxRuntime.jsx("div", { style: dropZoneStyle, children: jsxRuntime.jsxs("div", { style: {
+                            }, onDelete: deleteImage, onReorder: reorderImage, onAddImage: openFilePicker, currentView: currentView, onViewChange: setCurrentView, compact: false, isMobile: false })) }), jsxRuntime.jsxs("div", { style: canvasColumnStyle, children: [jsxRuntime.jsxs("div", { ref: containerRef, style: containerStyle, onDrop: handleDrop, onDragOver: handleDragOver, onClick: handleContainerClick, children: [images.length === 0 && (jsxRuntime.jsx("div", { style: {
+                                            ...dropZoneStyle,
+                                            zIndex: isMobileMode ? 10 : undefined
+                                        }, children: jsxRuntime.jsxs("div", { style: {
                                                 display: "flex",
                                                 flexDirection: "column",
                                                 alignItems: "center",
-                                                padding: "32px",
+                                                padding: isMobileMode ? "24px 20px" : "32px",
                                                 border: `2px dashed ${COLORS.GRAY}`,
                                                 borderRadius: "20px",
-                                                backgroundColor: "rgba(255, 255, 255, 0.8)",
-                                                maxWidth: "280px",
-                                                textAlign: "center"
+                                                backgroundColor: COLORS.WHITE,
+                                                maxWidth: isMobileMode ? "90%" : "280px",
+                                                textAlign: "center",
+                                                boxShadow: isMobileMode ? "0 4px 20px rgba(0, 0, 0, 0.1)" : undefined
                                             }, children: [jsxRuntime.jsx("div", { style: {
-                                                        width: "56px",
-                                                        height: "56px",
+                                                        width: isMobileMode ? "64px" : "56px",
+                                                        height: isMobileMode ? "64px" : "56px",
                                                         borderRadius: "50%",
                                                         backgroundColor: "#FEF9E7",
                                                         display: "flex",
@@ -1692,18 +1792,57 @@ function TShirtBuilder({ frontBgImage, backBgImage, config: configProp, responsi
                                                         justifyContent: "center",
                                                         marginBottom: "16px",
                                                         boxShadow: "0 2px 10px rgba(250, 192, 0, 0.2)"
-                                                    }, children: jsxRuntime.jsx("svg", { width: "24", height: "24", viewBox: "0 0 24 24", fill: "none", xmlns: "http://www.w3.org/2000/svg", children: jsxRuntime.jsx("path", { d: "M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z", stroke: COLORS.ACCENT, strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round" }) }) }), jsxRuntime.jsx("span", { style: { fontWeight: 600, color: COLORS.DARK_GRAY, marginBottom: "4px" }, children: "\u041F\u0443\u0441\u043D\u0435\u0442\u0435 \u0438\u0437\u043E\u0431\u0440\u0430\u0436\u0435\u043D\u0438\u0435 \u0442\u0443\u043A" }), jsxRuntime.jsx("span", { style: { color: COLORS.GRAY, fontSize: "13px", marginBottom: "16px" }, children: "\u0438\u043B\u0438 \u043A\u043B\u0438\u043A\u043D\u0435\u0442\u0435 \u0437\u0430 \u0438\u0437\u0431\u043E\u0440" }), jsxRuntime.jsx("button", { onClick: openFilePicker, style: {
-                                                        padding: "12px 24px",
+                                                    }, children: isMobileMode ? (
+                                                    // Camera icon for mobile
+                                                    jsxRuntime.jsxs("svg", { width: "28", height: "28", viewBox: "0 0 24 24", fill: "none", xmlns: "http://www.w3.org/2000/svg", children: [jsxRuntime.jsx("path", { d: "M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2v11z", stroke: COLORS.ACCENT, strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round" }), jsxRuntime.jsx("circle", { cx: "12", cy: "13", r: "4", stroke: COLORS.ACCENT, strokeWidth: "2" })] })) : (jsxRuntime.jsx("svg", { width: "24", height: "24", viewBox: "0 0 24 24", fill: "none", xmlns: "http://www.w3.org/2000/svg", children: jsxRuntime.jsx("path", { d: "M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z", stroke: COLORS.ACCENT, strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round" }) })) }), jsxRuntime.jsx("span", { style: { fontWeight: 600, color: COLORS.DARK_GRAY, marginBottom: "4px", fontSize: isMobileMode ? "15px" : "14px" }, children: isMobileMode ? "Докоснете за качване" : "Пуснете изображение тук" }), jsxRuntime.jsx("span", { style: { color: COLORS.GRAY, fontSize: isMobileMode ? "14px" : "13px", marginBottom: "16px" }, children: isMobileMode ? "от камера или галерия" : "или кликнете за избор" }), jsxRuntime.jsx("button", { onClick: openFilePicker, style: {
+                                                        padding: isMobileMode ? "16px 32px" : "12px 24px",
+                                                        minHeight: isMobileMode ? "52px" : "auto",
                                                         backgroundColor: COLORS.ACCENT,
                                                         color: COLORS.BLACK,
                                                         border: "none",
                                                         borderRadius: "10px",
                                                         cursor: "pointer",
                                                         fontWeight: 600,
-                                                        fontSize: "14px",
+                                                        fontSize: isMobileMode ? "16px" : "14px",
                                                         boxShadow: "0 2px 10px rgba(250, 192, 0, 0.3)",
-                                                        transition: "all 0.3s ease-out"
-                                                    }, children: "\u0418\u0437\u0431\u0435\u0440\u0438 \u0444\u0430\u0439\u043B" }), jsxRuntime.jsx("span", { style: { color: COLORS.GRAY, fontSize: "11px", marginTop: "12px" }, children: "PNG, JPG, WebP, GIF \u0434\u043E 10MB" })] }) })), displayConfig.printableArea && (jsxRuntime.jsx("div", { style: {
+                                                        transition: "all 0.3s ease-out",
+                                                        touchAction: "manipulation"
+                                                    }, children: isMobileMode ? "Избери снимка" : "Избери файл" }), jsxRuntime.jsx("span", { style: { color: COLORS.GRAY, fontSize: isMobileMode ? "12px" : "11px", marginTop: "12px" }, children: "PNG, JPG, WebP, GIF \u0434\u043E 10MB" })] }) })), uploadState.isUploading && (jsxRuntime.jsxs("div", { style: {
+                                            position: "absolute",
+                                            inset: 0,
+                                            backgroundColor: "rgba(255, 255, 255, 0.9)",
+                                            display: "flex",
+                                            flexDirection: "column",
+                                            alignItems: "center",
+                                            justifyContent: "center",
+                                            gap: "16px",
+                                            zIndex: 200,
+                                            borderRadius: "10px"
+                                        }, children: [jsxRuntime.jsx("div", { style: {
+                                                    width: isMobileMode ? "64px" : "56px",
+                                                    height: isMobileMode ? "64px" : "56px",
+                                                    borderRadius: "50%",
+                                                    backgroundColor: "#FEF9E7",
+                                                    display: "flex",
+                                                    alignItems: "center",
+                                                    justifyContent: "center",
+                                                    boxShadow: "0 2px 10px rgba(250, 192, 0, 0.2)"
+                                                }, children: jsxRuntime.jsx("svg", { width: isMobileMode ? "28" : "24", height: isMobileMode ? "28" : "24", viewBox: "0 0 24 24", fill: "none", xmlns: "http://www.w3.org/2000/svg", style: {
+                                                        animation: "spin 1s linear infinite"
+                                                    }, children: jsxRuntime.jsx("path", { d: "M12 2v4m0 12v4m-6-10H2m20 0h-4m-1.343-5.657l-2.829 2.829m-5.656 5.656l-2.829 2.829m11.314 0l-2.829-2.829m-5.656-5.656L4.686 6.343", stroke: COLORS.ACCENT, strokeWidth: "2", strokeLinecap: "round" }) }) }), jsxRuntime.jsx("span", { style: { fontWeight: 600, color: COLORS.DARK_GRAY, fontSize: isMobileMode ? "15px" : "14px" }, children: "\u041A\u0430\u0447\u0432\u0430\u043D\u0435..." }), jsxRuntime.jsx("div", { style: {
+                                                    width: "80%",
+                                                    maxWidth: "200px",
+                                                    height: "6px",
+                                                    backgroundColor: COLORS.LIGHT_GRAY,
+                                                    borderRadius: "3px",
+                                                    overflow: "hidden"
+                                                }, children: jsxRuntime.jsx("div", { style: {
+                                                        width: `${uploadState.progress}%`,
+                                                        height: "100%",
+                                                        backgroundColor: COLORS.ACCENT,
+                                                        borderRadius: "3px",
+                                                        transition: "width 0.2s ease-out"
+                                                    } }) }), uploadState.fileName && (jsxRuntime.jsx("span", { style: { color: COLORS.GRAY, fontSize: isMobileMode ? "13px" : "12px", maxWidth: "80%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }, children: uploadState.fileName }))] })), displayConfig.printableArea && (jsxRuntime.jsx("div", { style: {
                                             position: "absolute",
                                             left: displayConfig.printableArea.minX,
                                             top: displayConfig.printableArea.minY,
@@ -1768,7 +1907,7 @@ function TShirtBuilder({ frontBgImage, backBgImage, config: configProp, responsi
                                         } }))] }), onExport && (jsxRuntime.jsxs("button", { style: exportButtonStyle, onClick: handleExport, onMouseEnter: () => setExportButtonHovered(true), onMouseLeave: () => {
                                     setExportButtonHovered(false);
                                     setExportButtonActive(false);
-                                }, onMouseDown: () => setExportButtonActive(true), onMouseUp: () => setExportButtonActive(false), children: [jsxRuntime.jsx("svg", { width: "18", height: "18", viewBox: "0 0 16 16", fill: "none", xmlns: "http://www.w3.org/2000/svg", children: jsxRuntime.jsx("path", { d: "M14 10v2.667A1.334 1.334 0 0112.667 14H3.333A1.334 1.334 0 012 12.667V10M4.667 6.667L8 3.333l3.333 3.334M8 3.333V10", stroke: "currentColor", strokeWidth: "1.5", strokeLinecap: "round", strokeLinejoin: "round" }) }), "\u0417\u0430\u0432\u044A\u0440\u0448\u0438 \u0434\u0438\u0437\u0430\u0439\u043D"] }))] })] }), jsxRuntime.jsx("input", { ref: inputRef, type: "file", accept: acceptedTypes.join(","), onChange: handleFileChange, style: { display: "none" } })] }));
+                                }, onMouseDown: () => setExportButtonActive(true), onMouseUp: () => setExportButtonActive(false), children: [jsxRuntime.jsx("svg", { width: "18", height: "18", viewBox: "0 0 16 16", fill: "none", xmlns: "http://www.w3.org/2000/svg", children: jsxRuntime.jsx("path", { d: "M14 10v2.667A1.334 1.334 0 0112.667 14H3.333A1.334 1.334 0 012 12.667V10M4.667 6.667L8 3.333l3.333 3.334M8 3.333V10", stroke: "currentColor", strokeWidth: "1.5", strokeLinecap: "round", strokeLinejoin: "round" }) }), "\u0417\u0430\u0432\u044A\u0440\u0448\u0438 \u0434\u0438\u0437\u0430\u0439\u043D"] }))] })] }), jsxRuntime.jsx("input", { ref: inputRef, type: "file", accept: acceptAttribute, capture: isMobileMode ? "environment" : undefined, onChange: handleFileChange, style: { display: "none" } })] }));
 }
 
 exports.Controls = Controls;
@@ -1778,4 +1917,5 @@ exports.createOffscreenCanvas = createOffscreenCanvas;
 exports.exportToDataUrl = exportToDataUrl;
 exports.useImageTransform = useImageTransform;
 exports.useImageUpload = useImageUpload;
+exports.useResponsive = useResponsive;
 //# sourceMappingURL=index.cjs.js.map

@@ -1,4 +1,4 @@
-import { useCallback, useRef } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import type { ImageData, ImageTransform, EditorConfig } from '../types';
 
 const DEFAULT_ACCEPTED_TYPES = ['image/png', 'image/jpeg', 'image/webp', 'image/gif'];
@@ -8,22 +8,45 @@ function generateId(): string {
   return Math.random().toString(36).substring(2, 11);
 }
 
+export interface UploadState {
+  /** Whether an upload is currently in progress */
+  isUploading: boolean;
+  /** Upload progress percentage (0-100) */
+  progress: number;
+  /** File name being uploaded */
+  fileName: string | null;
+}
+
 interface UseImageUploadOptions {
   config: EditorConfig;
   onImageLoad: (imageData: ImageData) => void;
   onError?: (error: string) => void;
+  /** Enable mobile-optimized upload experience */
+  isMobile?: boolean;
 }
 
-export function useImageUpload({ config, onImageLoad, onError }: UseImageUploadOptions) {
+export function useImageUpload({ config, onImageLoad, onError, isMobile = false }: UseImageUploadOptions) {
   const inputRef = useRef<HTMLInputElement>(null);
+  const [uploadState, setUploadState] = useState<UploadState>({
+    isUploading: false,
+    progress: 0,
+    fileName: null
+  });
 
   const acceptedTypes = config.acceptedFileTypes || DEFAULT_ACCEPTED_TYPES;
   const maxFileSize = config.maxFileSize || DEFAULT_MAX_FILE_SIZE;
 
+  // For mobile, use image/* to allow camera and all image types
+  // For desktop, use specific MIME types
+  const acceptAttribute = isMobile ? 'image/*' : acceptedTypes.join(',');
+
   const processFile = useCallback(
     (file: File) => {
-      // Validate file type
-      if (!acceptedTypes.includes(file.type)) {
+      // For mobile, be more lenient with MIME types (camera may return different types)
+      // Check if it's an image by prefix
+      const isImage = file.type.startsWith('image/') || acceptedTypes.includes(file.type);
+
+      if (!isImage) {
         onError?.(`Невалиден тип файл. Позволени: ${acceptedTypes.join(', ')}`);
         return;
       }
@@ -34,13 +57,33 @@ export function useImageUpload({ config, onImageLoad, onError }: UseImageUploadO
         return;
       }
 
+      // Set uploading state
+      setUploadState({
+        isUploading: true,
+        progress: 0,
+        fileName: file.name
+      });
+
       const reader = new FileReader();
+
+      // Track progress for visual feedback
+      reader.onprogress = (event) => {
+        if (event.lengthComputable) {
+          const progress = Math.round((event.loaded / event.total) * 50); // 0-50% for reading
+          setUploadState(prev => ({ ...prev, progress }));
+        }
+      };
 
       reader.onload = (e) => {
         const src = e.target?.result as string;
         const img = new Image();
 
+        // Update progress - file read complete, now loading image
+        setUploadState(prev => ({ ...prev, progress: 60 }));
+
         img.onload = () => {
+          setUploadState(prev => ({ ...prev, progress: 80 }));
+
           const { naturalWidth, naturalHeight } = img;
 
           // Calculate initial size to fit within editor while maintaining aspect ratio
@@ -79,6 +122,9 @@ export function useImageUpload({ config, onImageLoad, onError }: UseImageUploadO
             rotation: 0,
           };
 
+          // Complete - 100%
+          setUploadState(prev => ({ ...prev, progress: 100 }));
+
           onImageLoad({
             id: generateId(),
             src,
@@ -86,9 +132,23 @@ export function useImageUpload({ config, onImageLoad, onError }: UseImageUploadO
             naturalHeight,
             transform,
           });
+
+          // Reset upload state after a brief delay for visual feedback
+          setTimeout(() => {
+            setUploadState({
+              isUploading: false,
+              progress: 0,
+              fileName: null
+            });
+          }, 300);
         };
 
         img.onerror = () => {
+          setUploadState({
+            isUploading: false,
+            progress: 0,
+            fileName: null
+          });
           onError?.('Грешка при зареждане на изображението');
         };
 
@@ -96,6 +156,11 @@ export function useImageUpload({ config, onImageLoad, onError }: UseImageUploadO
       };
 
       reader.onerror = () => {
+        setUploadState({
+          isUploading: false,
+          progress: 0,
+          fileName: null
+        });
         onError?.('Грешка при четене на файла');
       };
 
@@ -140,12 +205,37 @@ export function useImageUpload({ config, onImageLoad, onError }: UseImageUploadO
     inputRef.current?.click();
   }, []);
 
+  // Handle paste from clipboard
+  const handlePaste = useCallback(
+    (event: ClipboardEvent) => {
+      const items = event.clipboardData?.items;
+      if (!items) return;
+
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i];
+        if (item.type.startsWith('image/')) {
+          const file = item.getAsFile();
+          if (file) {
+            event.preventDefault();
+            processFile(file);
+            return;
+          }
+        }
+      }
+    },
+    [processFile]
+  );
+
   return {
     inputRef,
     handleFileChange,
     handleDrop,
     handleDragOver,
     openFilePicker,
+    handlePaste,
     acceptedTypes,
+    acceptAttribute,
+    uploadState,
+    isMobile,
   };
 }

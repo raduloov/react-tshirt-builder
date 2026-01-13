@@ -247,11 +247,30 @@ export function TShirtBuilder({
     [currentView, onChange]
   );
 
-  const { inputRef, handleFileChange, handleDrop, handleDragOver, openFilePicker, acceptedTypes } = useImageUpload({
+  const isMobileMode = responsiveConfig.enabled && responsiveState.isMobile;
+
+  const {
+    inputRef,
+    handleFileChange,
+    handleDrop,
+    handleDragOver,
+    openFilePicker,
+    handlePaste,
+    acceptAttribute,
+    uploadState
+  } = useImageUpload({
     config,
     onImageLoad: handleImageLoad,
-    onError: setError
+    onError: setError,
+    isMobile: isMobileMode
   });
+
+  // Listen for clipboard paste events
+  useEffect(() => {
+    const handleGlobalPaste = (e: ClipboardEvent) => handlePaste(e);
+    window.addEventListener('paste', handleGlobalPaste);
+    return () => window.removeEventListener('paste', handleGlobalPaste);
+  }, [handlePaste]);
 
   const {
     selectedId,
@@ -454,6 +473,16 @@ export function TShirtBuilder({
 
   return (
     <div ref={wrapperRef} className={className} style={{ ...wrapperStyle, ...style }}>
+      {/* Keyframes for spinner animation */}
+      <style>
+        {`
+          @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+          }
+        `}
+      </style>
+
       {error && (
         <div
           style={{
@@ -662,24 +691,28 @@ export function TShirtBuilder({
           >
             {/* Drop zone placeholder */}
             {images.length === 0 && (
-              <div style={dropZoneStyle}>
+              <div style={{
+                ...dropZoneStyle,
+                zIndex: isMobileMode ? 10 : undefined
+              }}>
                 <div
                   style={{
                     display: "flex",
                     flexDirection: "column",
                     alignItems: "center",
-                    padding: "32px",
+                    padding: isMobileMode ? "24px 20px" : "32px",
                     border: `2px dashed ${COLORS.GRAY}`,
                     borderRadius: "20px",
-                    backgroundColor: "rgba(255, 255, 255, 0.8)",
-                    maxWidth: "280px",
-                    textAlign: "center"
+                    backgroundColor: COLORS.WHITE,
+                    maxWidth: isMobileMode ? "90%" : "280px",
+                    textAlign: "center",
+                    boxShadow: isMobileMode ? "0 4px 20px rgba(0, 0, 0, 0.1)" : undefined
                   }}
                 >
                   <div
                     style={{
-                      width: "56px",
-                      height: "56px",
+                      width: isMobileMode ? "64px" : "56px",
+                      height: isMobileMode ? "64px" : "56px",
                       borderRadius: "50%",
                       backgroundColor: "#FEF9E7",
                       display: "flex",
@@ -689,41 +722,138 @@ export function TShirtBuilder({
                       boxShadow: "0 2px 10px rgba(250, 192, 0, 0.2)"
                     }}
                   >
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                      <path
-                        d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
-                        stroke={COLORS.ACCENT}
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
-                    </svg>
+                    {isMobileMode ? (
+                      // Camera icon for mobile
+                      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path
+                          d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2v11z"
+                          stroke={COLORS.ACCENT}
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                        <circle cx="12" cy="13" r="4" stroke={COLORS.ACCENT} strokeWidth="2" />
+                      </svg>
+                    ) : (
+                      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path
+                          d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+                          stroke={COLORS.ACCENT}
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                      </svg>
+                    )}
                   </div>
-                  <span style={{ fontWeight: 600, color: COLORS.DARK_GRAY, marginBottom: "4px" }}>
-                    Пуснете изображение тук
+                  <span style={{ fontWeight: 600, color: COLORS.DARK_GRAY, marginBottom: "4px", fontSize: isMobileMode ? "15px" : "14px" }}>
+                    {isMobileMode ? "Докоснете за качване" : "Пуснете изображение тук"}
                   </span>
-                  <span style={{ color: COLORS.GRAY, fontSize: "13px", marginBottom: "16px" }}>или кликнете за избор</span>
+                  <span style={{ color: COLORS.GRAY, fontSize: isMobileMode ? "14px" : "13px", marginBottom: "16px" }}>
+                    {isMobileMode ? "от камера или галерия" : "или кликнете за избор"}
+                  </span>
                   <button
                     onClick={openFilePicker}
                     style={{
-                      padding: "12px 24px",
+                      padding: isMobileMode ? "16px 32px" : "12px 24px",
+                      minHeight: isMobileMode ? "52px" : "auto",
                       backgroundColor: COLORS.ACCENT,
                       color: COLORS.BLACK,
                       border: "none",
                       borderRadius: "10px",
                       cursor: "pointer",
                       fontWeight: 600,
-                      fontSize: "14px",
+                      fontSize: isMobileMode ? "16px" : "14px",
                       boxShadow: "0 2px 10px rgba(250, 192, 0, 0.3)",
-                      transition: "all 0.3s ease-out"
+                      transition: "all 0.3s ease-out",
+                      touchAction: "manipulation"
                     }}
                   >
-                    Избери файл
+                    {isMobileMode ? "Избери снимка" : "Избери файл"}
                   </button>
-                  <span style={{ color: COLORS.GRAY, fontSize: "11px", marginTop: "12px" }}>
+                  <span style={{ color: COLORS.GRAY, fontSize: isMobileMode ? "12px" : "11px", marginTop: "12px" }}>
                     PNG, JPG, WebP, GIF до 10MB
                   </span>
                 </div>
+              </div>
+            )}
+
+            {/* Upload progress overlay */}
+            {uploadState.isUploading && (
+              <div
+                style={{
+                  position: "absolute",
+                  inset: 0,
+                  backgroundColor: "rgba(255, 255, 255, 0.9)",
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: "16px",
+                  zIndex: 200,
+                  borderRadius: "10px"
+                }}
+              >
+                <div
+                  style={{
+                    width: isMobileMode ? "64px" : "56px",
+                    height: isMobileMode ? "64px" : "56px",
+                    borderRadius: "50%",
+                    backgroundColor: "#FEF9E7",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    boxShadow: "0 2px 10px rgba(250, 192, 0, 0.2)"
+                  }}
+                >
+                  {/* Spinning loader */}
+                  <svg
+                    width={isMobileMode ? "28" : "24"}
+                    height={isMobileMode ? "28" : "24"}
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    xmlns="http://www.w3.org/2000/svg"
+                    style={{
+                      animation: "spin 1s linear infinite"
+                    }}
+                  >
+                    <path
+                      d="M12 2v4m0 12v4m-6-10H2m20 0h-4m-1.343-5.657l-2.829 2.829m-5.656 5.656l-2.829 2.829m11.314 0l-2.829-2.829m-5.656-5.656L4.686 6.343"
+                      stroke={COLORS.ACCENT}
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                    />
+                  </svg>
+                </div>
+                <span style={{ fontWeight: 600, color: COLORS.DARK_GRAY, fontSize: isMobileMode ? "15px" : "14px" }}>
+                  Качване...
+                </span>
+                {/* Progress bar */}
+                <div
+                  style={{
+                    width: "80%",
+                    maxWidth: "200px",
+                    height: "6px",
+                    backgroundColor: COLORS.LIGHT_GRAY,
+                    borderRadius: "3px",
+                    overflow: "hidden"
+                  }}
+                >
+                  <div
+                    style={{
+                      width: `${uploadState.progress}%`,
+                      height: "100%",
+                      backgroundColor: COLORS.ACCENT,
+                      borderRadius: "3px",
+                      transition: "width 0.2s ease-out"
+                    }}
+                  />
+                </div>
+                {uploadState.fileName && (
+                  <span style={{ color: COLORS.GRAY, fontSize: isMobileMode ? "13px" : "12px", maxWidth: "80%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {uploadState.fileName}
+                  </span>
+                )}
               </div>
             )}
 
@@ -871,11 +1001,12 @@ export function TShirtBuilder({
         </div>
       </div>
 
-      {/* Hidden file input */}
+      {/* Hidden file input - mobile-optimized with camera access */}
       <input
         ref={inputRef}
         type="file"
-        accept={acceptedTypes.join(",")}
+        accept={acceptAttribute}
+        capture={isMobileMode ? "environment" : undefined}
         onChange={handleFileChange}
         style={{ display: "none" }}
       />
