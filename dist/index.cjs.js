@@ -765,7 +765,7 @@ const addButtonStyle = {
 function LayerPanel({ images, selectedId, onSelect, onDelete, onReorder, onAddImage, currentView, onViewChange, compact = false }) {
     // Adjust panel style for compact mode
     const dynamicPanelStyle = compact
-        ? { ...panelStyle, width: '100%', borderRadius: 0 }
+        ? { ...panelStyle, width: '100%', borderRadius: '0 0 10px 10px', boxShadow: 'none' }
         : panelStyle;
     const [dragState, setDragState] = React.useState(null);
     const listRef = React.useRef(null);
@@ -933,7 +933,7 @@ function LayerPanel({ images, selectedId, onSelect, onDelete, onReorder, onAddIm
     const [hoveredDeleteId, setHoveredDeleteId] = React.useState(null);
     const [addButtonHovered, setAddButtonHovered] = React.useState(false);
     const [addButtonActive, setAddButtonActive] = React.useState(false);
-    return (jsxRuntime.jsxs("div", { style: dynamicPanelStyle, children: [jsxRuntime.jsx("div", { style: headerStyle, children: jsxRuntime.jsxs("div", { style: viewToggleContainerStyle, children: [jsxRuntime.jsxs("button", { style: getViewButtonStyle(currentView === "front"), onClick: () => onViewChange("front"), children: [jsxRuntime.jsx(FrontIcon, {}), "\u041E\u0442\u043F\u0440\u0435\u0434"] }), jsxRuntime.jsxs("button", { style: getViewButtonStyle(currentView === "back"), onClick: () => onViewChange("back"), children: [jsxRuntime.jsx(BackIcon, {}), "\u041E\u0442\u0437\u0430\u0434"] })] }) }), jsxRuntime.jsx("div", { style: { padding: "12px 12px 4px" }, children: jsxRuntime.jsxs("button", { style: {
+    return (jsxRuntime.jsxs("div", { style: dynamicPanelStyle, children: [!compact && (jsxRuntime.jsx("div", { style: headerStyle, children: jsxRuntime.jsxs("div", { style: viewToggleContainerStyle, children: [jsxRuntime.jsxs("button", { style: getViewButtonStyle(currentView === "front"), onClick: () => onViewChange("front"), children: [jsxRuntime.jsx(FrontIcon, {}), "\u041E\u0442\u043F\u0440\u0435\u0434"] }), jsxRuntime.jsxs("button", { style: getViewButtonStyle(currentView === "back"), onClick: () => onViewChange("back"), children: [jsxRuntime.jsx(BackIcon, {}), "\u041E\u0442\u0437\u0430\u0434"] })] }) })), jsxRuntime.jsx("div", { style: { padding: "12px 12px 4px" }, children: jsxRuntime.jsxs("button", { style: {
                         ...addButtonStyle,
                         margin: 0,
                         ...(addButtonActive
@@ -1326,13 +1326,10 @@ function TShirtBuilder({ frontBgImage, backBgImage, config: configProp, responsi
     };
     // Panel container style for mobile drawer
     const panelContainerStyle = layoutMode === 'vertical' ? {
-        width: '100%',
+        width: canvasDimensions.width,
         order: 2, // Panel below canvas on mobile
-        maxHeight: isPanelCollapsed ? '56px' : '400px',
-        overflow: 'hidden',
-        transition: 'max-height 0.3s ease-out',
-        borderRadius: '10px',
-        boxShadow: '0 -2px 10px rgba(0, 0, 0, 0.1)'
+        boxShadow: '0 2px 10px rgba(0, 0, 0, 0.1)',
+        borderRadius: '10px'
     } : {
         width: typeof panelWidth === 'number' ? `${panelWidth}px` : panelWidth,
         flexShrink: 0
@@ -1408,27 +1405,80 @@ function TShirtBuilder({ frontBgImage, backBgImage, config: configProp, responsi
                     fontSize: "13px",
                     fontWeight: 500,
                     boxShadow: "0 2px 10px rgba(255, 0, 0, 0.1)"
-                }, children: [jsxRuntime.jsx("svg", { width: "16", height: "16", viewBox: "0 0 16 16", fill: "none", xmlns: "http://www.w3.org/2000/svg", children: jsxRuntime.jsx("path", { d: "M8 5.333V8M8 10.667h.007M14.667 8A6.667 6.667 0 111.333 8a6.667 6.667 0 0113.334 0z", stroke: "currentColor", strokeWidth: "1.5", strokeLinecap: "round", strokeLinejoin: "round" }) }), error] })), jsxRuntime.jsxs("div", { style: layoutContainerStyle, children: [jsxRuntime.jsxs("div", { style: panelContainerStyle, children: [layoutMode === 'vertical' && (jsxRuntime.jsxs("button", { onClick: togglePanelCollapse, style: {
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    gap: '8px',
-                                    width: '100%',
-                                    padding: '16px',
-                                    backgroundColor: COLORS.WHITE,
-                                    border: 'none',
-                                    borderBottom: isPanelCollapsed ? 'none' : `1px solid ${COLORS.LIGHT_GRAY}`,
-                                    cursor: 'pointer',
-                                    fontSize: '14px',
-                                    fontWeight: 600,
-                                    color: COLORS.DARK_GRAY
-                                }, children: [jsxRuntime.jsx("svg", { width: "16", height: "16", viewBox: "0 0 16 16", fill: "none", xmlns: "http://www.w3.org/2000/svg", style: {
-                                            transform: isPanelCollapsed ? 'rotate(0deg)' : 'rotate(180deg)',
-                                            transition: 'transform 0.3s ease-out'
-                                        }, children: jsxRuntime.jsx("path", { d: "M4 6l4 4 4-4", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round" }) }), isPanelCollapsed ? 'Покажи слоевете' : 'Скрий слоевете'] })), jsxRuntime.jsx(LayerPanel, { images: images, selectedId: selectedId, onSelect: (id) => {
-                                    selectImage(id);
-                                    handleMobileImageInteraction();
-                                }, onDelete: deleteImage, onReorder: reorderImage, onAddImage: openFilePicker, currentView: currentView, onViewChange: setCurrentView, compact: layoutMode === 'vertical' })] }), jsxRuntime.jsxs("div", { style: canvasColumnStyle, children: [jsxRuntime.jsxs("div", { ref: containerRef, style: containerStyle, onDrop: handleDrop, onDragOver: handleDragOver, onClick: handleContainerClick, children: [images.length === 0 && (jsxRuntime.jsx("div", { style: dropZoneStyle, children: jsxRuntime.jsxs("div", { style: {
+                }, children: [jsxRuntime.jsx("svg", { width: "16", height: "16", viewBox: "0 0 16 16", fill: "none", xmlns: "http://www.w3.org/2000/svg", children: jsxRuntime.jsx("path", { d: "M8 5.333V8M8 10.667h.007M14.667 8A6.667 6.667 0 111.333 8a6.667 6.667 0 0113.334 0z", stroke: "currentColor", strokeWidth: "1.5", strokeLinecap: "round", strokeLinejoin: "round" }) }), error] })), jsxRuntime.jsxs("div", { style: layoutContainerStyle, children: [jsxRuntime.jsx("div", { style: panelContainerStyle, children: layoutMode === 'vertical' ? (jsxRuntime.jsxs("div", { style: {
+                                backgroundColor: COLORS.WHITE,
+                                borderRadius: '10px',
+                                overflow: 'hidden'
+                            }, children: [jsxRuntime.jsx("div", { style: {
+                                        display: 'flex',
+                                        padding: '8px',
+                                        borderBottom: `1px solid ${COLORS.LIGHT_GRAY}`
+                                    }, children: jsxRuntime.jsxs("div", { style: {
+                                            display: 'flex',
+                                            width: '100%',
+                                            backgroundColor: COLORS.LIGHT_GRAY,
+                                            borderRadius: '8px',
+                                            padding: '4px'
+                                        }, children: [jsxRuntime.jsxs("button", { onClick: () => setCurrentView('front'), style: {
+                                                    flex: 1,
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    justifyContent: 'center',
+                                                    gap: '6px',
+                                                    padding: '10px 12px',
+                                                    border: 'none',
+                                                    borderRadius: '6px',
+                                                    backgroundColor: currentView === 'front' ? COLORS.WHITE : 'transparent',
+                                                    color: currentView === 'front' ? COLORS.DARK_GRAY : COLORS.GRAY,
+                                                    fontSize: '13px',
+                                                    fontWeight: 600,
+                                                    cursor: 'pointer',
+                                                    transition: 'all 0.2s ease-out',
+                                                    boxShadow: currentView === 'front' ? '0 2px 4px rgba(0, 0, 0, 0.08)' : 'none'
+                                                }, children: [jsxRuntime.jsxs("svg", { width: "16", height: "16", viewBox: "0 0 24 24", fill: "none", xmlns: "http://www.w3.org/2000/svg", children: [jsxRuntime.jsx("path", { d: "M20 21V19a4 4 0 00-4-4H8a4 4 0 00-4 4v2", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round" }), jsxRuntime.jsx("circle", { cx: "12", cy: "7", r: "4", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round" })] }), "\u041E\u0442\u043F\u0440\u0435\u0434"] }), jsxRuntime.jsxs("button", { onClick: () => setCurrentView('back'), style: {
+                                                    flex: 1,
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    justifyContent: 'center',
+                                                    gap: '6px',
+                                                    padding: '10px 12px',
+                                                    border: 'none',
+                                                    borderRadius: '6px',
+                                                    backgroundColor: currentView === 'back' ? COLORS.WHITE : 'transparent',
+                                                    color: currentView === 'back' ? COLORS.DARK_GRAY : COLORS.GRAY,
+                                                    fontSize: '13px',
+                                                    fontWeight: 600,
+                                                    cursor: 'pointer',
+                                                    transition: 'all 0.2s ease-out',
+                                                    boxShadow: currentView === 'back' ? '0 2px 4px rgba(0, 0, 0, 0.08)' : 'none'
+                                                }, children: [jsxRuntime.jsxs("svg", { width: "16", height: "16", viewBox: "0 0 24 24", fill: "none", xmlns: "http://www.w3.org/2000/svg", children: [jsxRuntime.jsx("path", { d: "M20 21V19a4 4 0 00-4-4H8a4 4 0 00-4 4v2", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round" }), jsxRuntime.jsx("circle", { cx: "12", cy: "7", r: "4", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round" }), jsxRuntime.jsx("path", { d: "M3 3l18 18", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round" })] }), "\u041E\u0442\u0437\u0430\u0434"] })] }) }), jsxRuntime.jsxs("button", { onClick: togglePanelCollapse, style: {
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        gap: '8px',
+                                        width: '100%',
+                                        padding: '14px 16px',
+                                        backgroundColor: COLORS.WHITE,
+                                        border: 'none',
+                                        borderBottom: isPanelCollapsed ? 'none' : `1px solid ${COLORS.LIGHT_GRAY}`,
+                                        cursor: 'pointer',
+                                        fontSize: '14px',
+                                        fontWeight: 600,
+                                        color: COLORS.DARK_GRAY
+                                    }, children: [jsxRuntime.jsx("svg", { width: "16", height: "16", viewBox: "0 0 16 16", fill: "none", xmlns: "http://www.w3.org/2000/svg", style: {
+                                                transform: isPanelCollapsed ? 'rotate(0deg)' : 'rotate(180deg)',
+                                                transition: 'transform 0.3s ease-out'
+                                            }, children: jsxRuntime.jsx("path", { d: "M4 6l4 4 4-4", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round" }) }), isPanelCollapsed ? 'Покажи слоевете' : 'Скрий слоевете'] }), jsxRuntime.jsx("div", { style: {
+                                        maxHeight: isPanelCollapsed ? '0' : '350px',
+                                        overflow: 'hidden',
+                                        transition: 'max-height 0.3s ease-out'
+                                    }, children: jsxRuntime.jsx(LayerPanel, { images: images, selectedId: selectedId, onSelect: (id) => {
+                                            selectImage(id);
+                                            handleMobileImageInteraction();
+                                        }, onDelete: deleteImage, onReorder: reorderImage, onAddImage: openFilePicker, currentView: currentView, onViewChange: setCurrentView, compact: true }) })] })) : (jsxRuntime.jsx(LayerPanel, { images: images, selectedId: selectedId, onSelect: (id) => {
+                                selectImage(id);
+                                handleMobileImageInteraction();
+                            }, onDelete: deleteImage, onReorder: reorderImage, onAddImage: openFilePicker, currentView: currentView, onViewChange: setCurrentView, compact: false })) }), jsxRuntime.jsxs("div", { style: canvasColumnStyle, children: [jsxRuntime.jsxs("div", { ref: containerRef, style: containerStyle, onDrop: handleDrop, onDragOver: handleDragOver, onClick: handleContainerClick, children: [images.length === 0 && (jsxRuntime.jsx("div", { style: dropZoneStyle, children: jsxRuntime.jsxs("div", { style: {
                                                 display: "flex",
                                                 flexDirection: "column",
                                                 alignItems: "center",

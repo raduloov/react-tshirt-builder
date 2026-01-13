@@ -378,13 +378,10 @@ export function TShirtBuilder({
 
   // Panel container style for mobile drawer
   const panelContainerStyle: React.CSSProperties = layoutMode === 'vertical' ? {
-    width: '100%',
+    width: canvasDimensions.width,
     order: 2, // Panel below canvas on mobile
-    maxHeight: isPanelCollapsed ? '56px' : '400px',
-    overflow: 'hidden',
-    transition: 'max-height 0.3s ease-out',
-    borderRadius: '10px',
-    boxShadow: '0 -2px 10px rgba(0, 0, 0, 0.1)'
+    boxShadow: '0 2px 10px rgba(0, 0, 0, 0.1)',
+    borderRadius: '10px'
   } : {
     width: typeof panelWidth === 'number' ? `${panelWidth}px` : panelWidth,
     flexShrink: 0
@@ -489,61 +486,167 @@ export function TShirtBuilder({
       <div style={layoutContainerStyle}>
         {/* Layer Panel - with mobile drawer support */}
         <div style={panelContainerStyle}>
-          {layoutMode === 'vertical' && (
-            <button
-              onClick={togglePanelCollapse}
+          {/* Mobile layout with front/back toggle + collapsible layers */}
+          {layoutMode === 'vertical' ? (
+            <div
               style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '8px',
-                width: '100%',
-                padding: '16px',
                 backgroundColor: COLORS.WHITE,
-                border: 'none',
-                borderBottom: isPanelCollapsed ? 'none' : `1px solid ${COLORS.LIGHT_GRAY}`,
-                cursor: 'pointer',
-                fontSize: '14px',
-                fontWeight: 600,
-                color: COLORS.DARK_GRAY
+                borderRadius: '10px',
+                overflow: 'hidden'
               }}
             >
-              <svg
-                width="16"
-                height="16"
-                viewBox="0 0 16 16"
-                fill="none"
-                xmlns="http://www.w3.org/2000/svg"
+              {/* Front/Back toggle - always visible */}
+              <div
                 style={{
-                  transform: isPanelCollapsed ? 'rotate(0deg)' : 'rotate(180deg)',
-                  transition: 'transform 0.3s ease-out'
+                  display: 'flex',
+                  padding: '8px',
+                  borderBottom: `1px solid ${COLORS.LIGHT_GRAY}`
                 }}
               >
-                <path
-                  d="M4 6l4 4 4-4"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
+                <div
+                  style={{
+                    display: 'flex',
+                    width: '100%',
+                    backgroundColor: COLORS.LIGHT_GRAY,
+                    borderRadius: '8px',
+                    padding: '4px'
+                  }}
+                >
+                  <button
+                    onClick={() => setCurrentView('front')}
+                    style={{
+                      flex: 1,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '6px',
+                      padding: '10px 12px',
+                      border: 'none',
+                      borderRadius: '6px',
+                      backgroundColor: currentView === 'front' ? COLORS.WHITE : 'transparent',
+                      color: currentView === 'front' ? COLORS.DARK_GRAY : COLORS.GRAY,
+                      fontSize: '13px',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease-out',
+                      boxShadow: currentView === 'front' ? '0 2px 4px rgba(0, 0, 0, 0.08)' : 'none'
+                    }}
+                  >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <path d="M20 21V19a4 4 0 00-4-4H8a4 4 0 00-4 4v2" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                      <circle cx="12" cy="7" r="4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                    Отпред
+                  </button>
+                  <button
+                    onClick={() => setCurrentView('back')}
+                    style={{
+                      flex: 1,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '6px',
+                      padding: '10px 12px',
+                      border: 'none',
+                      borderRadius: '6px',
+                      backgroundColor: currentView === 'back' ? COLORS.WHITE : 'transparent',
+                      color: currentView === 'back' ? COLORS.DARK_GRAY : COLORS.GRAY,
+                      fontSize: '13px',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease-out',
+                      boxShadow: currentView === 'back' ? '0 2px 4px rgba(0, 0, 0, 0.08)' : 'none'
+                    }}
+                  >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <path d="M20 21V19a4 4 0 00-4-4H8a4 4 0 00-4 4v2" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                      <circle cx="12" cy="7" r="4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                      <path d="M3 3l18 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                    </svg>
+                    Отзад
+                  </button>
+                </div>
+              </div>
+              {/* Show/Hide layers toggle */}
+              <button
+                onClick={togglePanelCollapse}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '8px',
+                  width: '100%',
+                  padding: '14px 16px',
+                  backgroundColor: COLORS.WHITE,
+                  border: 'none',
+                  borderBottom: isPanelCollapsed ? 'none' : `1px solid ${COLORS.LIGHT_GRAY}`,
+                  cursor: 'pointer',
+                  fontSize: '14px',
+                  fontWeight: 600,
+                  color: COLORS.DARK_GRAY
+                }}
+              >
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 16 16"
+                  fill="none"
+                  xmlns="http://www.w3.org/2000/svg"
+                  style={{
+                    transform: isPanelCollapsed ? 'rotate(0deg)' : 'rotate(180deg)',
+                    transition: 'transform 0.3s ease-out'
+                  }}
+                >
+                  <path
+                    d="M4 6l4 4 4-4"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+                {isPanelCollapsed ? 'Покажи слоевете' : 'Скрий слоевете'}
+              </button>
+              {/* Collapsible layers content */}
+              <div
+                style={{
+                  maxHeight: isPanelCollapsed ? '0' : '350px',
+                  overflow: 'hidden',
+                  transition: 'max-height 0.3s ease-out'
+                }}
+              >
+                <LayerPanel
+                  images={images}
+                  selectedId={selectedId}
+                  onSelect={(id) => {
+                    selectImage(id);
+                    handleMobileImageInteraction();
+                  }}
+                  onDelete={deleteImage}
+                  onReorder={reorderImage}
+                  onAddImage={openFilePicker}
+                  currentView={currentView}
+                  onViewChange={setCurrentView}
+                  compact={true}
                 />
-              </svg>
-              {isPanelCollapsed ? 'Покажи слоевете' : 'Скрий слоевете'}
-            </button>
+              </div>
+            </div>
+          ) : (
+            <LayerPanel
+              images={images}
+              selectedId={selectedId}
+              onSelect={(id) => {
+                selectImage(id);
+                handleMobileImageInteraction();
+              }}
+              onDelete={deleteImage}
+              onReorder={reorderImage}
+              onAddImage={openFilePicker}
+              currentView={currentView}
+              onViewChange={setCurrentView}
+              compact={false}
+            />
           )}
-          <LayerPanel
-            images={images}
-            selectedId={selectedId}
-            onSelect={(id) => {
-              selectImage(id);
-              handleMobileImageInteraction();
-            }}
-            onDelete={deleteImage}
-            onReorder={reorderImage}
-            onAddImage={openFilePicker}
-            currentView={currentView}
-            onViewChange={setCurrentView}
-            compact={layoutMode === 'vertical'}
-          />
         </div>
 
         {/* Canvas and Export */}

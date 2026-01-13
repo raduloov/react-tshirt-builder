@@ -214,7 +214,7 @@ export function LayerPanel({
 }: LayerPanelProps) {
   // Adjust panel style for compact mode
   const dynamicPanelStyle: React.CSSProperties = compact
-    ? { ...panelStyle, width: '100%', borderRadius: 0 }
+    ? { ...panelStyle, width: '100%', borderRadius: '0 0 10px 10px', boxShadow: 'none' }
     : panelStyle;
   const [dragState, setDragState] = useState<{
     draggingIndex: number;
@@ -418,18 +418,21 @@ export function LayerPanel({
 
   return (
     <div style={dynamicPanelStyle}>
-      <div style={headerStyle}>
-        <div style={viewToggleContainerStyle}>
-          <button style={getViewButtonStyle(currentView === "front")} onClick={() => onViewChange("front")}>
-            <FrontIcon />
-            Отпред
-          </button>
-          <button style={getViewButtonStyle(currentView === "back")} onClick={() => onViewChange("back")}>
-            <BackIcon />
-            Отзад
-          </button>
+      {/* Hide view toggle in compact mode - it's rendered separately in TShirtBuilder */}
+      {!compact && (
+        <div style={headerStyle}>
+          <div style={viewToggleContainerStyle}>
+            <button style={getViewButtonStyle(currentView === "front")} onClick={() => onViewChange("front")}>
+              <FrontIcon />
+              Отпред
+            </button>
+            <button style={getViewButtonStyle(currentView === "back")} onClick={() => onViewChange("back")}>
+              <BackIcon />
+              Отзад
+            </button>
+          </div>
         </div>
-      </div>
+      )}
       <div style={{ padding: "12px 12px 4px" }}>
         <button
           style={{
