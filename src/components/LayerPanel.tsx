@@ -31,7 +31,10 @@ const COLORS = {
 };
 
 const panelStyle: React.CSSProperties = {
-  width: "220px",
+  width: "100%",
+  height: "100%",
+  display: "flex",
+  flexDirection: "column",
   backgroundColor: COLORS.WHITE,
   borderRadius: "10px",
   overflow: "hidden",
@@ -78,7 +81,7 @@ const listStyle: React.CSSProperties = {
   listStyle: "none",
   margin: 0,
   padding: "8px",
-  maxHeight: "320px",
+  flex: 1,
   overflowY: "auto",
   position: "relative"
 };
@@ -87,7 +90,12 @@ const emptyStyle: React.CSSProperties = {
   padding: "32px 20px",
   textAlign: "center",
   color: COLORS.GRAY,
-  fontSize: "13px"
+  fontSize: "13px",
+  flex: 1,
+  display: "flex",
+  flexDirection: "column",
+  justifyContent: "center",
+  alignItems: "center"
 };
 
 // Note: dragHandleStyle and dragLineStyle are now dynamic functions inside the component
@@ -213,7 +221,7 @@ export function LayerPanel({
 }: LayerPanelProps) {
   // Adjust panel style for compact mode
   const dynamicPanelStyle: React.CSSProperties = compact
-    ? { ...panelStyle, width: '100%', borderRadius: '0 0 10px 10px', boxShadow: 'none' }
+    ? { ...panelStyle, width: '100%', height: 'auto', borderRadius: '0 0 10px 10px', boxShadow: 'none' }
     : panelStyle;
 
   // Use mobile item height for touch-friendly targets

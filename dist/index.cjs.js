@@ -872,7 +872,10 @@ const COLORS$1 = {
     RED: "#FF0000"
 };
 const panelStyle = {
-    width: "220px",
+    width: "100%",
+    height: "100%",
+    display: "flex",
+    flexDirection: "column",
     backgroundColor: COLORS$1.WHITE,
     borderRadius: "10px",
     overflow: "hidden",
@@ -915,7 +918,7 @@ const listStyle = {
     listStyle: "none",
     margin: 0,
     padding: "8px",
-    maxHeight: "320px",
+    flex: 1,
     overflowY: "auto",
     position: "relative"
 };
@@ -923,7 +926,12 @@ const emptyStyle = {
     padding: "32px 20px",
     textAlign: "center",
     color: COLORS$1.GRAY,
-    fontSize: "13px"
+    fontSize: "13px",
+    flex: 1,
+    display: "flex",
+    flexDirection: "column",
+    justifyContent: "center",
+    alignItems: "center"
 };
 // Note: dragHandleStyle and dragLineStyle are now dynamic functions inside the component
 // to support mobile-responsive sizing (getDragHandleStyle and getDragLineStyle)
@@ -968,7 +976,7 @@ const getMobileAddButtonStyle = (isMobile) => ({
 function LayerPanel({ images, selectedId, onSelect, onDelete, onReorder, onAddImage, currentView, onViewChange, compact = false, isMobile = false }) {
     // Adjust panel style for compact mode
     const dynamicPanelStyle = compact
-        ? { ...panelStyle, width: '100%', borderRadius: '0 0 10px 10px', boxShadow: 'none' }
+        ? { ...panelStyle, width: '100%', height: 'auto', borderRadius: '0 0 10px 10px', boxShadow: 'none' }
         : panelStyle;
     // Use mobile item height for touch-friendly targets
     const itemHeight = isMobile ? MOBILE_ITEM_HEIGHT : ITEM_HEIGHT;
@@ -1634,6 +1642,7 @@ function TShirtBuilder({ frontBgImage, backBgImage, config: configProp, responsi
     // Wrapper style for responsive layout
     const wrapperStyle = {
         width: '100%',
+        overflow: 'hidden',
         fontFamily: "Roboto, -apple-system, BlinkMacSystemFont, sans-serif"
     };
     // Main layout container style based on layout mode
@@ -1641,7 +1650,7 @@ function TShirtBuilder({ frontBgImage, backBgImage, config: configProp, responsi
         display: "flex",
         flexDirection: layoutMode === 'vertical' ? 'column' : 'row',
         gap: layoutMode === 'vertical' ? '12px' : '16px',
-        alignItems: layoutMode === 'vertical' ? 'center' : 'flex-start'
+        alignItems: layoutMode === 'vertical' ? 'center' : 'stretch'
     };
     // Panel container style for mobile drawer
     const panelContainerStyle = layoutMode === 'vertical' ? {
@@ -1658,7 +1667,9 @@ function TShirtBuilder({ frontBgImage, backBgImage, config: configProp, responsi
         display: 'flex',
         flexDirection: 'column',
         alignItems: layoutMode === 'vertical' ? 'center' : 'flex-start',
-        order: layoutMode === 'vertical' ? 1 : 2
+        order: layoutMode === 'vertical' ? 1 : 2,
+        // Prevent overflow in horizontal layout
+        ...(layoutMode === 'horizontal' ? { flex: 1, minWidth: 0 } : {})
     };
     const dropZoneStyle = {
         position: "absolute",
@@ -1679,7 +1690,7 @@ function TShirtBuilder({ frontBgImage, backBgImage, config: configProp, responsi
         alignItems: "center",
         justifyContent: "center",
         gap: "8px",
-        width: "100%",
+        width: canvasDimensions.width,
         padding: "14px 20px",
         marginTop: "12px",
         backgroundColor: COLORS.ACCENT,
@@ -1941,7 +1952,7 @@ function TShirtBuilder({ frontBgImage, backBgImage, config: configProp, responsi
                                         } }))] }), onExport && (jsxRuntime.jsxs("button", { style: exportButtonStyle, onClick: handleExport, onMouseEnter: () => setExportButtonHovered(true), onMouseLeave: () => {
                                     setExportButtonHovered(false);
                                     setExportButtonActive(false);
-                                }, onMouseDown: () => setExportButtonActive(true), onMouseUp: () => setExportButtonActive(false), children: [jsxRuntime.jsx("svg", { width: "18", height: "18", viewBox: "0 0 16 16", fill: "none", xmlns: "http://www.w3.org/2000/svg", children: jsxRuntime.jsx("path", { d: "M14 10v2.667A1.334 1.334 0 0112.667 14H3.333A1.334 1.334 0 012 12.667V10M4.667 6.667L8 3.333l3.333 3.334M8 3.333V10", stroke: "currentColor", strokeWidth: "1.5", strokeLinecap: "round", strokeLinejoin: "round" }) }), "\u0417\u0430\u0432\u044A\u0440\u0448\u0438 \u0434\u0438\u0437\u0430\u0439\u043D"] }))] })] }), jsxRuntime.jsx("input", { ref: inputRef, type: "file", accept: acceptAttribute, capture: isMobileMode ? "environment" : undefined, onChange: handleFileChange, style: { display: "none" } })] }));
+                                }, onMouseDown: () => setExportButtonActive(true), onMouseUp: () => setExportButtonActive(false), children: [jsxRuntime.jsx("svg", { width: "18", height: "18", viewBox: "0 0 16 16", fill: "none", xmlns: "http://www.w3.org/2000/svg", children: jsxRuntime.jsx("path", { d: "M14 10v2.667A1.334 1.334 0 0112.667 14H3.333A1.334 1.334 0 012 12.667V10M4.667 6.667L8 3.333l3.333 3.334M8 3.333V10", stroke: "currentColor", strokeWidth: "1.5", strokeLinecap: "round", strokeLinejoin: "round" }) }), "\u0417\u0430\u0432\u044A\u0440\u0448\u0438 \u0434\u0438\u0437\u0430\u0439\u043D"] }))] })] }), jsxRuntime.jsx("input", { ref: inputRef, type: "file", accept: acceptAttribute, onChange: handleFileChange, style: { display: "none" } })] }));
 }
 
 exports.Controls = Controls;

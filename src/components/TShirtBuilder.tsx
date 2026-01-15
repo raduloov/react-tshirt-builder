@@ -384,6 +384,7 @@ export function TShirtBuilder({
   // Wrapper style for responsive layout
   const wrapperStyle: React.CSSProperties = {
     width: '100%',
+    overflow: 'hidden',
     fontFamily: "Roboto, -apple-system, BlinkMacSystemFont, sans-serif"
   };
 
@@ -392,7 +393,7 @@ export function TShirtBuilder({
     display: "flex",
     flexDirection: layoutMode === 'vertical' ? 'column' : 'row',
     gap: layoutMode === 'vertical' ? '12px' : '16px',
-    alignItems: layoutMode === 'vertical' ? 'center' : 'flex-start'
+    alignItems: layoutMode === 'vertical' ? 'center' : 'stretch'
   };
 
   // Panel container style for mobile drawer
@@ -411,7 +412,9 @@ export function TShirtBuilder({
     display: 'flex',
     flexDirection: 'column',
     alignItems: layoutMode === 'vertical' ? 'center' : 'flex-start',
-    order: layoutMode === 'vertical' ? 1 : 2
+    order: layoutMode === 'vertical' ? 1 : 2,
+    // Prevent overflow in horizontal layout
+    ...(layoutMode === 'horizontal' ? { flex: 1, minWidth: 0 } : {})
   };
 
   const dropZoneStyle: React.CSSProperties = {
@@ -435,7 +438,7 @@ export function TShirtBuilder({
     alignItems: "center",
     justifyContent: "center",
     gap: "8px",
-    width: "100%",
+    width: canvasDimensions.width,
     padding: "14px 20px",
     marginTop: "12px",
     backgroundColor: COLORS.ACCENT,
@@ -1001,12 +1004,11 @@ export function TShirtBuilder({
         </div>
       </div>
 
-      {/* Hidden file input - mobile-optimized with camera access */}
+      {/* Hidden file input */}
       <input
         ref={inputRef}
         type="file"
         accept={acceptAttribute}
-        capture={isMobileMode ? "environment" : undefined}
         onChange={handleFileChange}
         style={{ display: "none" }}
       />
