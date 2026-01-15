@@ -877,7 +877,7 @@ const panelStyle = {
     backgroundColor: COLORS$1.WHITE,
     borderRadius: "10px",
     overflow: "hidden",
-    boxShadow: "0 2px 10px rgba(0, 0, 0, 0.1)",
+    boxShadow: "0 0 10px rgba(0, 0, 0, 0.1)",
     fontFamily: "Roboto, -apple-system, BlinkMacSystemFont, sans-serif",
     // Prevent double-tap zoom on the panel
     touchAction: "manipulation"
@@ -1104,8 +1104,8 @@ function LayerPanel({ images, selectedId, onSelect, onDelete, onReorder, onAddIm
         let transform = swipeOffset !== 0 ? `translateX(${swipeOffset}px)` : "translateY(0)";
         let zIndex = 1;
         let boxShadow = isSelected
-            ? `0 0 0 2px ${COLORS$1.ACCENT}, 0 2px 10px rgba(250, 192, 0, 0.15)`
-            : "0 1px 3px rgba(0, 0, 0, 0.05)";
+            ? `0 0 0 2px ${COLORS$1.ACCENT}`
+            : "none";
         let transition = "transform 0.3s ease-out, background-color 0.3s ease-out, box-shadow 0.3s ease-out, border-color 0.3s ease-out";
         // Calculate background color for swipe feedback
         let backgroundColor = isDragging ? COLORS$1.WHITE : isSelected ? "#FEF9E7" : COLORS$1.WHITE;
@@ -1661,7 +1661,6 @@ function TShirtBuilder({ frontBgImage, backBgImage, backgrounds, initialBackgrou
     // Wrapper style for responsive layout
     const wrapperStyle = {
         width: '100%',
-        overflow: 'hidden',
         fontFamily: "Roboto, -apple-system, BlinkMacSystemFont, sans-serif"
     };
     // Main layout container style based on layout mode
@@ -1675,7 +1674,7 @@ function TShirtBuilder({ frontBgImage, backBgImage, backgrounds, initialBackgrou
     const panelContainerStyle = layoutMode === 'vertical' ? {
         width: canvasDimensions.width,
         order: 2, // Panel below canvas on mobile
-        boxShadow: '0 2px 10px rgba(0, 0, 0, 0.1)',
+        boxShadow: '0 0 10px rgba(0, 0, 0, 0.1)',
         borderRadius: '10px'
     } : {
         width: typeof panelWidth === 'number' ? `${panelWidth}px` : panelWidth,
@@ -1762,21 +1761,33 @@ function TShirtBuilder({ frontBgImage, backBgImage, backgrounds, initialBackgrou
                                         alignItems: 'center',
                                         gap: '8px',
                                         padding: '12px',
-                                        borderBottom: `1px solid ${COLORS.LIGHT_GRAY}`
-                                    }, children: [jsx("span", { style: { fontSize: '13px', fontWeight: 600, color: COLORS.DARK_GRAY, marginRight: '4px' }, children: "\u0426\u0432\u044F\u0442:" }), jsx("div", { style: { display: 'flex', gap: '6px' }, children: backgrounds.map(bg => (jsx("button", { onClick: () => handleBackgroundSelect(bg.id), title: bg.name, style: {
+                                        borderBottom: `1px solid ${COLORS.LIGHT_GRAY}`,
+                                        overflow: 'hidden'
+                                    }, children: [jsx("span", { style: { fontSize: '13px', fontWeight: 600, color: COLORS.DARK_GRAY, flexShrink: 0 }, children: "\u0426\u0432\u044F\u0442:" }), jsx("div", { style: {
+                                                display: 'flex',
+                                                gap: '6px',
+                                                overflowX: 'auto',
+                                                overflowY: 'hidden',
+                                                paddingBottom: '4px',
+                                                marginBottom: '-4px',
+                                                scrollbarWidth: 'none',
+                                                msOverflowStyle: 'none'
+                                            }, children: backgrounds.map(bg => (jsx("button", { onClick: () => handleBackgroundSelect(bg.id), title: bg.name, style: {
                                                     width: '32px',
                                                     height: '32px',
+                                                    minWidth: '32px',
                                                     borderRadius: '50%',
                                                     border: selectedBackgroundId === bg.id
                                                         ? `3px solid ${COLORS.ACCENT}`
-                                                        : `2px solid ${COLORS.GRAY}`,
+                                                        : `1px solid rgba(0, 0, 0, 0.1)`,
                                                     backgroundColor: bg.color,
                                                     cursor: 'pointer',
                                                     padding: 0,
                                                     transition: 'all 0.2s ease-out',
                                                     boxShadow: selectedBackgroundId === bg.id
-                                                        ? '0 2px 8px rgba(0, 0, 0, 0.2)'
-                                                        : '0 1px 3px rgba(0, 0, 0, 0.1)'
+                                                        ? `0 0 0 1px ${COLORS.ACCENT}`
+                                                        : 'inset 0 1px 3px rgba(0, 0, 0, 0.08)',
+                                                    flexShrink: 0
                                                 } }, bg.id))) })] })), jsx("div", { style: {
                                         display: 'flex',
                                         padding: '8px',
@@ -1878,21 +1889,21 @@ function TShirtBuilder({ frontBgImage, backBgImage, backgrounds, initialBackgrou
                                         backgroundColor: COLORS.WHITE,
                                         borderRadius: '10px',
                                         padding: '12px',
-                                        boxShadow: '0 2px 10px rgba(0, 0, 0, 0.05)'
+                                        boxShadow: '0 0 10px rgba(0, 0, 0, 0.1)'
                                     }, children: [jsx("span", { style: { fontSize: '12px', fontWeight: 600, color: COLORS.DARK_GRAY, display: 'block', marginBottom: '10px' }, children: "\u0426\u0432\u044F\u0442" }), jsx("div", { style: { display: 'flex', gap: '8px', flexWrap: 'wrap' }, children: backgrounds.map(bg => (jsx("button", { onClick: () => handleBackgroundSelect(bg.id), title: bg.name, style: {
                                                     width: '36px',
                                                     height: '36px',
                                                     borderRadius: '50%',
                                                     border: selectedBackgroundId === bg.id
                                                         ? `3px solid ${COLORS.ACCENT}`
-                                                        : `2px solid ${COLORS.GRAY}`,
+                                                        : `1px solid rgba(0, 0, 0, 0.1)`,
                                                     backgroundColor: bg.color,
                                                     cursor: 'pointer',
                                                     padding: 0,
                                                     transition: 'all 0.2s ease-out',
                                                     boxShadow: selectedBackgroundId === bg.id
-                                                        ? '0 2px 8px rgba(0, 0, 0, 0.2)'
-                                                        : '0 1px 3px rgba(0, 0, 0, 0.1)'
+                                                        ? `0 0 0 1px ${COLORS.ACCENT}`
+                                                        : 'inset 0 1px 3px rgba(0, 0, 0, 0.08)'
                                                 } }, bg.id))) })] })), jsx("div", { style: { flex: 1, minHeight: 0 }, children: jsx(LayerPanel, { images: images, selectedId: selectedId, onSelect: (id) => {
                                             selectImage(id);
                                             handleMobileImageInteraction();

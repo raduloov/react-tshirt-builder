@@ -40,7 +40,7 @@ const panelStyle: React.CSSProperties = {
   backgroundColor: COLORS.WHITE,
   borderRadius: "10px",
   overflow: "hidden",
-  boxShadow: "0 2px 10px rgba(0, 0, 0, 0.1)",
+  boxShadow: "0 0 10px rgba(0, 0, 0, 0.1)",
   fontFamily: "Roboto, -apple-system, BlinkMacSystemFont, sans-serif",
   // Prevent double-tap zoom on the panel
   touchAction: "manipulation"
@@ -391,8 +391,8 @@ export function LayerPanel({
     let transform = swipeOffset !== 0 ? `translateX(${swipeOffset}px)` : "translateY(0)";
     let zIndex = 1;
     let boxShadow = isSelected
-      ? `0 0 0 2px ${COLORS.ACCENT}, 0 2px 10px rgba(250, 192, 0, 0.15)`
-      : "0 1px 3px rgba(0, 0, 0, 0.05)";
+      ? `0 0 0 2px ${COLORS.ACCENT}`
+      : "none";
     let transition =
       "transform 0.3s ease-out, background-color 0.3s ease-out, box-shadow 0.3s ease-out, border-color 0.3s ease-out";
 

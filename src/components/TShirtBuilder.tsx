@@ -413,7 +413,6 @@ export function TShirtBuilder({
   // Wrapper style for responsive layout
   const wrapperStyle: React.CSSProperties = {
     width: '100%',
-    overflow: 'hidden',
     fontFamily: "Roboto, -apple-system, BlinkMacSystemFont, sans-serif"
   };
 
@@ -429,7 +428,7 @@ export function TShirtBuilder({
   const panelContainerStyle: React.CSSProperties = layoutMode === 'vertical' ? {
     width: canvasDimensions.width,
     order: 2, // Panel below canvas on mobile
-    boxShadow: '0 2px 10px rgba(0, 0, 0, 0.1)',
+    boxShadow: '0 0 10px rgba(0, 0, 0, 0.1)',
     borderRadius: '10px'
   } : {
     width: typeof panelWidth === 'number' ? `${panelWidth}px` : panelWidth,
@@ -541,13 +540,25 @@ export function TShirtBuilder({
                     alignItems: 'center',
                     gap: '8px',
                     padding: '12px',
-                    borderBottom: `1px solid ${COLORS.LIGHT_GRAY}`
+                    borderBottom: `1px solid ${COLORS.LIGHT_GRAY}`,
+                    overflow: 'hidden'
                   }}
                 >
-                  <span style={{ fontSize: '13px', fontWeight: 600, color: COLORS.DARK_GRAY, marginRight: '4px' }}>
+                  <span style={{ fontSize: '13px', fontWeight: 600, color: COLORS.DARK_GRAY, flexShrink: 0 }}>
                     Цвят:
                   </span>
-                  <div style={{ display: 'flex', gap: '6px' }}>
+                  <div
+                    style={{
+                      display: 'flex',
+                      gap: '6px',
+                      overflowX: 'auto',
+                      overflowY: 'hidden',
+                      paddingBottom: '4px',
+                      marginBottom: '-4px',
+                      scrollbarWidth: 'none',
+                      msOverflowStyle: 'none'
+                    }}
+                  >
                     {backgrounds.map(bg => (
                       <button
                         key={bg.id}
@@ -556,17 +567,19 @@ export function TShirtBuilder({
                         style={{
                           width: '32px',
                           height: '32px',
+                          minWidth: '32px',
                           borderRadius: '50%',
                           border: selectedBackgroundId === bg.id
                             ? `3px solid ${COLORS.ACCENT}`
-                            : `2px solid ${COLORS.GRAY}`,
+                            : `1px solid rgba(0, 0, 0, 0.1)`,
                           backgroundColor: bg.color,
                           cursor: 'pointer',
                           padding: 0,
                           transition: 'all 0.2s ease-out',
                           boxShadow: selectedBackgroundId === bg.id
-                            ? '0 2px 8px rgba(0, 0, 0, 0.2)'
-                            : '0 1px 3px rgba(0, 0, 0, 0.1)'
+                            ? `0 0 0 1px ${COLORS.ACCENT}`
+                            : 'inset 0 1px 3px rgba(0, 0, 0, 0.08)',
+                          flexShrink: 0
                         }}
                       />
                     ))}
@@ -774,7 +787,7 @@ export function TShirtBuilder({
                     backgroundColor: COLORS.WHITE,
                     borderRadius: '10px',
                     padding: '12px',
-                    boxShadow: '0 2px 10px rgba(0, 0, 0, 0.05)'
+                    boxShadow: '0 0 10px rgba(0, 0, 0, 0.1)'
                   }}
                 >
                   <span style={{ fontSize: '12px', fontWeight: 600, color: COLORS.DARK_GRAY, display: 'block', marginBottom: '10px' }}>
@@ -792,14 +805,14 @@ export function TShirtBuilder({
                           borderRadius: '50%',
                           border: selectedBackgroundId === bg.id
                             ? `3px solid ${COLORS.ACCENT}`
-                            : `2px solid ${COLORS.GRAY}`,
+                            : `1px solid rgba(0, 0, 0, 0.1)`,
                           backgroundColor: bg.color,
                           cursor: 'pointer',
                           padding: 0,
                           transition: 'all 0.2s ease-out',
                           boxShadow: selectedBackgroundId === bg.id
-                            ? '0 2px 8px rgba(0, 0, 0, 0.2)'
-                            : '0 1px 3px rgba(0, 0, 0, 0.1)'
+                            ? `0 0 0 1px ${COLORS.ACCENT}`
+                            : 'inset 0 1px 3px rgba(0, 0, 0, 0.08)'
                         }}
                       />
                     ))}
