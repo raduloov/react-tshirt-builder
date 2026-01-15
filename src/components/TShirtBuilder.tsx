@@ -433,7 +433,9 @@ export function TShirtBuilder({
     borderRadius: '10px'
   } : {
     width: typeof panelWidth === 'number' ? `${panelWidth}px` : panelWidth,
-    flexShrink: 0
+    flexShrink: 0,
+    display: 'flex',
+    flexDirection: 'column'
   };
 
   // Canvas column style
@@ -764,7 +766,7 @@ export function TShirtBuilder({
               </div>
             </div>
           ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', flex: 1 }}>
               {/* Background color selector for desktop */}
               {backgrounds && backgrounds.length > 1 && (
                 <div
@@ -804,21 +806,23 @@ export function TShirtBuilder({
                   </div>
                 </div>
               )}
-              <LayerPanel
-                images={images}
-                selectedId={selectedId}
-                onSelect={(id) => {
-                  selectImage(id);
-                  handleMobileImageInteraction();
-                }}
-                onDelete={deleteImage}
-                onReorder={reorderImage}
-                onAddImage={openFilePicker}
-                currentView={currentView}
-                onViewChange={setCurrentView}
-                compact={false}
-                isMobile={false}
-              />
+              <div style={{ flex: 1, minHeight: 0 }}>
+                <LayerPanel
+                  images={images}
+                  selectedId={selectedId}
+                  onSelect={(id) => {
+                    selectImage(id);
+                    handleMobileImageInteraction();
+                  }}
+                  onDelete={deleteImage}
+                  onReorder={reorderImage}
+                  onAddImage={openFilePicker}
+                  currentView={currentView}
+                  onViewChange={setCurrentView}
+                  compact={false}
+                  isMobile={false}
+                />
+              </div>
             </div>
           )}
         </div>

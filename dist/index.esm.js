@@ -1679,7 +1679,9 @@ function TShirtBuilder({ frontBgImage, backBgImage, backgrounds, initialBackgrou
         borderRadius: '10px'
     } : {
         width: typeof panelWidth === 'number' ? `${panelWidth}px` : panelWidth,
-        flexShrink: 0
+        flexShrink: 0,
+        display: 'flex',
+        flexDirection: 'column'
     };
     // Canvas column style
     const canvasColumnStyle = {
@@ -1872,7 +1874,7 @@ function TShirtBuilder({ frontBgImage, backBgImage, backgrounds, initialBackgrou
                                     }, children: jsx(LayerPanel, { images: images, selectedId: selectedId, onSelect: (id) => {
                                             selectImage(id);
                                             handleMobileImageInteraction();
-                                        }, onDelete: deleteImage, onReorder: reorderImage, onAddImage: openFilePicker, currentView: currentView, onViewChange: setCurrentView, compact: true, isMobile: true, hideAddButton: true }) })] })) : (jsxs("div", { style: { display: 'flex', flexDirection: 'column', gap: '12px' }, children: [backgrounds && backgrounds.length > 1 && (jsxs("div", { style: {
+                                        }, onDelete: deleteImage, onReorder: reorderImage, onAddImage: openFilePicker, currentView: currentView, onViewChange: setCurrentView, compact: true, isMobile: true, hideAddButton: true }) })] })) : (jsxs("div", { style: { display: 'flex', flexDirection: 'column', gap: '12px', flex: 1 }, children: [backgrounds && backgrounds.length > 1 && (jsxs("div", { style: {
                                         backgroundColor: COLORS.WHITE,
                                         borderRadius: '10px',
                                         padding: '12px',
@@ -1891,10 +1893,10 @@ function TShirtBuilder({ frontBgImage, backBgImage, backgrounds, initialBackgrou
                                                     boxShadow: selectedBackgroundId === bg.id
                                                         ? '0 2px 8px rgba(0, 0, 0, 0.2)'
                                                         : '0 1px 3px rgba(0, 0, 0, 0.1)'
-                                                } }, bg.id))) })] })), jsx(LayerPanel, { images: images, selectedId: selectedId, onSelect: (id) => {
-                                        selectImage(id);
-                                        handleMobileImageInteraction();
-                                    }, onDelete: deleteImage, onReorder: reorderImage, onAddImage: openFilePicker, currentView: currentView, onViewChange: setCurrentView, compact: false, isMobile: false })] })) }), jsxs("div", { style: canvasColumnStyle, children: [error && (jsxs("div", { style: {
+                                                } }, bg.id))) })] })), jsx("div", { style: { flex: 1, minHeight: 0 }, children: jsx(LayerPanel, { images: images, selectedId: selectedId, onSelect: (id) => {
+                                            selectImage(id);
+                                            handleMobileImageInteraction();
+                                        }, onDelete: deleteImage, onReorder: reorderImage, onAddImage: openFilePicker, currentView: currentView, onViewChange: setCurrentView, compact: false, isMobile: false }) })] })) }), jsxs("div", { style: canvasColumnStyle, children: [error && (jsxs("div", { style: {
                                     display: "flex",
                                     alignItems: "center",
                                     gap: "8px",
